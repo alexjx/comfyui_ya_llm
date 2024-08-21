@@ -1,3 +1,4 @@
 openai>=1.40.1
 pillow
 numpy
+jinja2

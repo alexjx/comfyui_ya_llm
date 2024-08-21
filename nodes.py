@@ -2,6 +2,7 @@ from openai import OpenAI
 from PIL import Image
 from typing import Optional, List
 import json
+import jinja2
 import numpy as np
 import io
 import base64
@@ -84,9 +85,22 @@ class LLMChat:
             },
             "optional": {
                 "messages": ("MSG_LIST", {}),
-                "system_prompt": ("STRING", {"multiline": True}),
-                "user_prompt": ("STRING", {"multiline": True}),
+                "system_prompt": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "placeholder": "This is the system prompt sent to LLM",
+                    },
+                ),
+                "user_prompt": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "placeholder": 'This is the user input, it will be rendered by template before sending it to LLM, reference it by "{{user_prompt}}"',
+                    },
+                ),
                 "images": ("IMAGE", {"forceInput": True}),
+                "template": ("STRING", {"multiline": True, "default": "{{user_prompt}}"}),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID",
@@ -108,6 +122,7 @@ class LLMChat:
         system_prompt: str = "",
         user_prompt: str = "",
         images=None,
+        template: str = "{user_prompt}",
         unique_id=None,
     ):
         _ = seed  # this is only for the sake of re-run
@@ -117,7 +132,13 @@ class LLMChat:
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
 
-        # if we have images, we need to convert it to text
+        # Apply the template if provided
+        if template:
+            template_env = jinja2.Environment(autoescape=True)
+            template_str = template_env.from_string(template)
+            user_prompt = template_str.render(user_prompt=user_prompt)
+
+        # if we have images, we need to convert them to text
         # FIXME: we are currently only take the first image
         if images is not None and len(images) > 0:
             # prepare content
