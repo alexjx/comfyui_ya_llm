@@ -135,7 +135,7 @@ class LLMChat:
 
         # Apply the template if provided
         if template:
-            template_env = jinja2.Environment(autoescape=True)
+            template_env = jinja2.Environment(autoescape=False)
             template_str = template_env.from_string(template)
             user_prompt = template_str.render(user_prompt=user_prompt)
 
@@ -203,7 +203,7 @@ class TextTemplate:
     FUNCTION = "render"
 
     def render(self, user_input: str, template: str):
-        template_env = jinja2.Environment(autoescape=True)
+        template_env = jinja2.Environment(autoescape=False)
         template_str = template_env.from_string(template)
         rendered_text = template_str.render(user_input=user_input)
         return (rendered_text,)
