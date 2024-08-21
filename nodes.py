@@ -1,5 +1,6 @@
 from openai import OpenAI
 from PIL import Image
+import jinja2
 from typing import Optional, List
 import json
 import jinja2
@@ -150,7 +151,7 @@ class LLMChat:
                         "type": "text",
                         "text": user_prompt,
                     }
-                )   
+                )
             # prepare image
             img_tensor = images[0]
             img_data = 255.0 * img_tensor.cpu().numpy()
@@ -184,3 +185,25 @@ class LLMChat:
         )
         messages.append(response)
         return response["content"].strip(), messages
+
+
+class TextTemplate:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "user_input": ("STRING", {"forceInput": True, }),
+                "template": ("STRING", {"multiline": True, "default": "{{user_input}}" }),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("rendered_text",)
+    CATEGORY = "Text Processing"
+    FUNCTION = "render"
+
+    def render(self, user_input: str, template: str):
+        template_env = jinja2.Environment(autoescape=True)
+        template_str = template_env.from_string(template)
+        rendered_text = template_str.render(user_input=user_input)
+        return (rendered_text,)
