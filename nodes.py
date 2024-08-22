@@ -1,10 +1,11 @@
 from openai import OpenAI
 from PIL import Image
 import jinja2
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import json
 import jinja2
 import numpy as np
+from typing import Tuple
 import io
 import base64
 
@@ -101,7 +102,10 @@ class LLMChat:
                     },
                 ),
                 "images": ("IMAGE", {"forceInput": True}),
-                "template": ("STRING", {"multiline": True, "default": "{{user_prompt}}"}),
+                "template": (
+                    "STRING",
+                    {"multiline": True, "default": "{{user_prompt}}"},
+                ),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID",
@@ -192,14 +196,22 @@ class TextTemplate:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "user_input": ("STRING", {"forceInput": True, }),
-                "template": ("STRING", {"multiline": True, "default": "{{user_input}}" }),
+                "user_input": (
+                    "STRING",
+                    {
+                        "forceInput": True,
+                    },
+                ),
+                "template": (
+                    "STRING",
+                    {"multiline": True, "default": "{{user_input}}"},
+                ),
             }
         }
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("rendered_text",)
-    CATEGORY = "Text Processing"
+    CATEGORY = "Yet Another LLM"
     FUNCTION = "render"
 
     def render(self, user_input: str, template: str):
@@ -208,3 +220,38 @@ class TextTemplate:
         rendered_text = template_str.render(user_input=user_input)
         return (rendered_text,)
 
+
+class TextExtract:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "input_text": ("STRING", {"forceInput": True}),
+            },
+            "optional": {
+                "begin": ("STRING", {}),
+                "end": ("STRING", {}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("extracted_text",)
+    CATEGORY = "Yet Another LLM"
+    FUNCTION = "extract"
+
+    def extract(
+        self, input_text: str, begin: Optional[str] = None, end: Optional[str] = None
+    ) -> Tuple[str]:
+        if begin:
+            start_idx = input_text.find(begin)
+            if start_idx == -1:
+                raise ValueError(f"Begin string '{begin}' not found in input text")
+        else:
+            start_idx = 0
+        if end:
+            end_idx = input_text.find(end, start_idx)
+            if end_idx == -1:
+                raise ValueError(f"End string '{end}' not found in input text")
+        else:
+            end_idx = len(input_text)
+        return (input_text[start_idx:end_idx],)
