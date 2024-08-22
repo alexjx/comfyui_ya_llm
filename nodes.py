@@ -207,3 +207,4 @@ class TextTemplate:
         template_str = template_env.from_string(template)
         rendered_text = template_str.render(user_input=user_input)
         return (rendered_text,)
+
