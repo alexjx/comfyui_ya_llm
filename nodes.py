@@ -255,3 +255,33 @@ class TextExtract:
         else:
             end_idx = len(input_text)
         return (input_text[start_idx:end_idx],)
+
+
+class TextRemove:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "input_text": ("STRING", {"forceInput": True}),
+                "begin": ("STRING", {}),
+                "end": ("STRING", {}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("striped_text",)
+    CATEGORY = "Yet Another LLM"
+    FUNCTION = "remove"
+
+    def remove(
+        self, input_text: str, begin: Optional[str] = None, end: Optional[str] = None
+    ) -> Tuple[str]:
+        start_idx = input_text.find(begin)
+        if start_idx == -1:
+            return (input_text,)
+        end_idx = input_text.find(end, start_idx)
+        if end_idx == -1:
+            return (input_text,)
+        end_idx += len(end)
+        result = input_text[:start_idx] + input_text[end_idx:]
+        return (result.strip(),)
