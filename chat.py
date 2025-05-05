@@ -1,17 +1,35 @@
-from openai import OpenAI
-from PIL import Image
-import jinja2
-from typing import Optional, List, Tuple
+import base64
+import io
 import json
+import logging
+import time
+from typing import List
+from typing import Optional
+from typing import Tuple
+
+import comfy.model_management
 import jinja2
 import numpy as np
-from typing import Tuple
-import io
-import base64
 import ollama
-import time
-import logging
-import comfy.model_management
+from aiohttp import web
+from ollama import Client
+from openai import OpenAI
+from PIL import Image
+from server import PromptServer
+
+
+@PromptServer.instance.routes.post("/yallm/get_ollama_models")
+async def get_models_endpoint(request):
+    data = await request.json()
+    url = data.get("url")
+    client = Client(host=url)
+    models = client.list().get("models", [])
+    try:
+        models = [model["model"] for model in models]
+        return web.json_response(models)
+    except Exception as e:
+        models = [model["name"] for model in models]
+        return web.json_response(models)
 
 
 class OpenAIApiModel:
@@ -200,7 +218,7 @@ class TextTemplate:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "user_input": (
+                "input1": (
                     "STRING",
                     {
                         "forceInput": True,
@@ -208,9 +226,29 @@ class TextTemplate:
                 ),
                 "template": (
                     "STRING",
-                    {"multiline": True, "default": "{{user_input}}"},
+                    {"multiline": True, "default": "{{input1}}"},
                 ),
-            }
+            },
+            "optional": {
+                "input2": (
+                    "STRING",
+                    {
+                        "forceInput": True,
+                    },
+                ),
+                "input3": (
+                    "STRING",
+                    {
+                        "forceInput": True,
+                    },
+                ),
+                "input4": (
+                    "STRING",
+                    {
+                        "forceInput": True,
+                    },
+                ),
+            },
         }
 
     RETURN_TYPES = ("STRING",)
@@ -218,10 +256,29 @@ class TextTemplate:
     CATEGORY = "Yet Another LLM"
     FUNCTION = "render"
 
-    def render(self, user_input: str, template: str):
+    def render(
+        self,
+        input1: str,
+        template: str,
+        input2: str = "",
+        input3: str = "",
+        input4: str = "",
+    ):
         template_env = jinja2.Environment(autoescape=False)
         template_str = template_env.from_string(template)
-        rendered_text = template_str.render(user_input=user_input)
+        if input1 is not None and input1 != "":
+            input1 = input1.strip()
+            template_str.globals["input1"] = input1
+        if input2 is not None and input2 != "":
+            input2 = input2.strip()
+            template_str.globals["input2"] = input2
+        if input3 is not None and input3 != "":
+            input3 = input3.strip()
+            template_str.globals["input3"] = input3
+        if input4 is not None and input4 != "":
+            input4 = input4.strip()
+            template_str.globals["input4"] = input4
+        rendered_text = template_str.render()
         return (rendered_text,)
 
 
@@ -319,6 +376,7 @@ class OllamaGenerate:
                 ),
                 "tfs_z": ("FLOAT", {"default": 1, "min": 1, "max": 1000, "step": 0.05}),
                 "keep_alive": ("INT", {"default": 0, "min": -1, "max": 60, "step": 1}),
+                "keep_reason": ("BOOLEAN", {"default": False}),
                 "format": (["text", "json", ""],),
             },
             "optional": {},
@@ -342,6 +400,7 @@ class OllamaGenerate:
         num_predict,
         tfs_z,
         keep_alive,
+        keep_reason,
         format,
     ):
         client = ollama.Client(host=url)
@@ -394,6 +453,17 @@ class OllamaGenerate:
         logging.info(
             f"Generated: prompt {response['prompt_eval_count']} token - response {response['eval_count']} tokens in {response['total_duration'] / (10**9):.2f}s ({response['eval_count'] / response['eval_duration'] * (10**9):.2f} tokens/s)"
         )
+
+        if not keep_reason:
+            # remove thinking phase: content between <think> and </think> tags
+            think_start = response["response"].find("<think>")
+            if think_start != -1:
+                think_end = response["response"].find("</think>", think_start)
+                if think_end != -1:
+                    response["response"] = (
+                        response["response"][:think_start]
+                        + response["response"][think_end + len("</think>") :]
+                    ).strip()
 
         return (response["response"],)
 
@@ -757,6 +827,7 @@ class OllamaChatDual:
             phase2_msg = phase2_msg_content
 
         return (phase1_msg, phase2_msg)
+
 
 # A dictionary that contains all nodes you want to export with their names
 NODE_CLASS_MAPPINGS = {
