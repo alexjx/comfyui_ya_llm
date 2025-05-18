@@ -2,7 +2,11 @@ import base64
 import io
 import json
 import logging
+import re
 import time
+from io import BytesIO
+from typing import Any
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -11,10 +15,14 @@ import comfy.model_management
 import jinja2
 import numpy as np
 import ollama
+import requests
+import tenacity
+import torch
 from aiohttp import web
 from ollama import Client
 from openai import OpenAI
 from PIL import Image
+from PIL import ImageOps
 from server import PromptServer
 
 
@@ -829,6 +837,154 @@ class OllamaChatDual:
         return (phase1_msg, phase2_msg)
 
 
+class GPTImageGeneratorChat:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": (
+                    "STRING",
+                    {"default": "gpt-4o-image-vip", "multiline": False},
+                ),
+                "api_url": (
+                    "STRING",
+                    {"default": "https://api.tu-zi.com/v1", "multiline": False},
+                ),
+                "api_key": ("STRING", {"multiline": False}),
+                "ratio": (["1:1", "2:3", "3:2"], {"default": "1:1"}),
+                "num_images": (["1", "2", "4"], {"default": "4"}),
+                "seed": ("INT", {"default": 66666666, "min": 0, "max": 4294967295}),
+            },
+            "optional": {
+                "images": ("IMAGE",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("images", "API Respond")
+    OUTPUT_IS_LIST = (True, False)
+    FUNCTION = "generate_image"
+    CATEGORY = "Yet Another LLM"
+
+    def encode_images_to_base64(self, image_tensor, max_dimension=1024, quality=85):
+        base64_images = []
+        batch_size = image_tensor.shape[0]
+        for i in range(batch_size):
+            input_image = image_tensor[i].cpu().numpy()
+            input_image = (input_image * 255).astype(np.uint8)
+            pil_image = Image.fromarray(input_image)
+            original_width, original_height = pil_image.width, pil_image.height
+            if original_width > max_dimension or original_height > max_dimension:
+                if original_width > original_height:
+                    new_width = max_dimension
+                    new_height = int(original_height * (max_dimension / original_width))
+                else:
+                    new_height = max_dimension
+                    new_width = int(original_width * (max_dimension / original_height))
+                pil_image = pil_image.resize(
+                    (new_width, new_height), Image.Resampling.LANCZOS
+                )
+            buffered = BytesIO()
+            pil_image.save(buffered, format="JPEG", quality=quality)
+            img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            base64_images.append(img_str)
+        return base64_images
+
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=1, max=10),
+        stop=tenacity.stop_after_attempt(5),
+    )
+    def download_image(self, url):
+        response = requests.get(url)
+        response.raise_for_status()
+        image = Image.open(BytesIO(response.content))
+        image = ImageOps.exif_transpose(image)
+        image = image.convert("RGB")
+        return image
+
+    def image_to_tensor(self, image):
+        image = np.array(image).astype(np.float32) / 255.0
+        image_tensor = torch.from_numpy(image)[None,]
+        return image_tensor
+
+    def generate_image(
+        self,
+        prompt,
+        model,
+        api_url,
+        api_key,
+        ratio,
+        num_images,
+        seed,
+        images=None,
+    ):
+        client = OpenAI(
+            api_key=api_key,
+            base_url=api_url,
+        )
+
+        full_prompt = (
+            f"{prompt}\n\nOutput image ratio: {ratio}\nOutput image count: {num_images}"
+        )
+        user_content: List[Dict[str, Any]] = [
+            {
+                "type": "text",
+                "text": full_prompt,
+            }
+        ]
+        if images is not None:
+            for img in self.encode_images_to_base64(images):
+                user_content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{img}",
+                        },
+                    }
+                )
+
+        print("Generating image, please wait...")
+        resp_stream = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": user_content,
+                }  # type: ignore
+            ],
+            seed=seed,
+            stream=True,
+        )
+
+        resp_content = ""
+        # handle stream output to console
+        for chunk in resp_stream:
+            content = getattr(chunk.choices[0].delta, "content", None)
+            print(content, end="", flush=True)
+            resp_content += content if content else ""
+        print("\nImage generation completed.")
+
+        # extract the image links from the response
+        pattern = r"\[([^\]]+)\]\((https?://filesystem\.site[^\)]+)\)"
+        matches = re.findall(pattern, resp_content)
+        result_links = []
+        for match in matches:
+            link = match[1]
+            if "/download/" not in link:
+                result_links.append(link)
+
+        # download those images and convert them to PIL images
+        images = []
+        for link in result_links:
+            images.append(self.download_image(link))
+
+        # convert the images to tensors
+        image_tensors = [self.image_to_tensor(img) for img in images]
+
+        return (image_tensors, resp_content)
+
+
 # A dictionary that contains all nodes you want to export with their names
 NODE_CLASS_MAPPINGS = {
     "yaLLMApiModelLoader": LLMApiModelLoader,
@@ -839,6 +995,7 @@ NODE_CLASS_MAPPINGS = {
     "yaOllamaChat": OllamaChat,
     "yaOllamaGenerate": OllamaGenerate,
     "yaOllamaChatDual": OllamaChatDual,
+    "yaGPTImageGeneratorChat": GPTImageGeneratorChat,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -851,4 +1008,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "yaOllamaChat": "Ollama Chat",
     "yaOllamaGenerate": "Ollama Generate",
     "yaOllamaChatDual": "Ollama Chat Dual Round",
+    "yaGPTImageGeneratorChat": "GPT Image Generator Chat",
 }
