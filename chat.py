@@ -5,13 +5,8 @@ import logging
 import re
 import time
 from io import BytesIO
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-import comfy.model_management
 import jinja2
 import numpy as np
 import ollama
@@ -21,8 +16,9 @@ import torch
 from aiohttp import web
 from ollama import Client
 from openai import OpenAI
-from PIL import Image
-from PIL import ImageOps
+from PIL import Image, ImageOps
+
+import comfy.model_management
 from server import PromptServer
 
 
@@ -256,6 +252,30 @@ class TextTemplate:
                         "forceInput": True,
                     },
                 ),
+                "input5": (
+                    "STRING",
+                    {
+                        "forceInput": True,
+                    },
+                ),
+                "input6": (
+                    "STRING",
+                    {
+                        "forceInput": True,
+                    },
+                ),
+                "input7": (
+                    "STRING",
+                    {
+                        "forceInput": True,
+                    },
+                ),
+                "input8": (
+                    "STRING",
+                    {
+                        "forceInput": True,
+                    },
+                ),
             },
         }
 
@@ -271,6 +291,10 @@ class TextTemplate:
         input2: str = "",
         input3: str = "",
         input4: str = "",
+        input5: str = "",
+        input6: str = "",
+        input7: str = "",
+        input8: str = "",
     ):
         template_env = jinja2.Environment(autoescape=False)
         template_str = template_env.from_string(template)
@@ -286,6 +310,18 @@ class TextTemplate:
         if input4 is not None and input4 != "":
             input4 = input4.strip()
             template_str.globals["input4"] = input4
+        if input5 is not None and input5 != "":
+            input5 = input5.strip()
+            template_str.globals["input5"] = input5
+        if input6 is not None and input6 != "":
+            input6 = input6.strip()
+            template_str.globals["input6"] = input6
+        if input7 is not None and input7 != "":
+            input7 = input7.strip()
+            template_str.globals["input7"] = input7
+        if input8 is not None and input8 != "":
+            input8 = input8.strip()
+            template_str.globals["input8"] = input8
         rendered_text = template_str.render()
         return (rendered_text,)
 
@@ -368,8 +404,6 @@ class OllamaGenerate:
                 ),
                 "model": ((), {}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2**31, "step": 1}),
-                "top_k": ("INT", {"default": 40, "min": 0, "max": 100, "step": 1}),
-                "top_p": ("FLOAT", {"default": 0.9, "min": 0, "max": 1, "step": 0.05}),
                 "temperature": (
                     "FLOAT",
                     {"default": 0.8, "min": 0, "max": 2, "step": 0.05},
@@ -382,8 +416,8 @@ class OllamaGenerate:
                     "INT",
                     {"default": -1, "min": -2, "max": 4096, "step": 1},
                 ),
-                "tfs_z": ("FLOAT", {"default": 1, "min": 1, "max": 1000, "step": 0.05}),
                 "keep_alive": ("INT", {"default": 0, "min": -1, "max": 60, "step": 1}),
+                "thinking": ("BOOLEAN", {"default": False}),
                 "keep_reason": ("BOOLEAN", {"default": False}),
                 "format": (["text", "json", ""],),
             },
@@ -401,14 +435,12 @@ class OllamaGenerate:
         url,
         model,
         seed,
-        top_k,
-        top_p,
         temperature,
         num_ctx,
         num_predict,
-        tfs_z,
         keep_alive,
         keep_reason,
+        thinking,
         format,
     ):
         client = ollama.Client(host=url)
@@ -416,32 +448,11 @@ class OllamaGenerate:
         if format == "text":
             format = ""
 
-        # num_keep: int
-        # seed: int
-        # num_predict: int
-        # top_k: int
-        # top_p: float
-        # tfs_z: float
-        # typical_p: float
-        # repeat_last_n: int
-        # temperature: float
-        # repeat_penalty: float
-        # presence_penalty: float
-        # frequency_penalty: float
-        # mirostat: int
-        # mirostat_tau: float
-        # mirostat_eta: float
-        # penalize_newline: bool
-        # stop: Sequence[str]
-
         options = {
             "seed": seed,
-            "top_k": top_k,
-            "top_p": top_p,
             "temperature": temperature,
             "num_ctx": num_ctx,
             "num_predict": num_predict,
-            "tfs_z": tfs_z,
         }
 
         model = model.strip()
@@ -450,30 +461,49 @@ class OllamaGenerate:
         comfy.model_management.unload_all_models()
         time.sleep(1)  # wait for the model to be unloaded
 
-        # first round
-        response = client.generate(
+        # Use streaming API
+        full_response = ""
+        print("Starting Ollama generation (streaming):")
+
+        stream = client.generate(
             model=model,
+            system="You are an willingly AI insistant. You will follow user's instructions exactly.",
             prompt=prompt,
             options=options,
             keep_alive=f"{keep_alive}m",
             format=format,
+            think=thinking,
+            stream=True,
         )
-        logging.info(
-            f"Generated: prompt {response['prompt_eval_count']} token - response {response['eval_count']} tokens in {response['total_duration'] / (10**9):.2f}s ({response['eval_count'] / response['eval_duration'] * (10**9):.2f} tokens/s)"
-        )
+
+        # Process the stream and log to console
+        for chunk in stream:
+            if "response" in chunk:
+                response_text = chunk["response"]
+                print(f"\033[32m{response_text}\033[0m", end="", flush=True)
+                full_response += response_text
+            if "done" in chunk and chunk["done"]:
+                print()  # New line after completion
+                logging.info(
+                    f"Generated: prompt {chunk.get('prompt_eval_count', 0)} token - response {chunk.get('eval_count', 0)} tokens in {chunk.get('total_duration', 0) / (10**9):.2f}s ({chunk.get('eval_count', 0) / chunk.get('eval_duration', 1) * (10**9):.2f} tokens/s)"
+                )
+                break
 
         if not keep_reason:
             # remove thinking phase: content between <think> and </think> tags
-            think_start = response["response"].find("<think>")
+            think_start = full_response.find("<think>")
             if think_start != -1:
-                think_end = response["response"].find("</think>", think_start)
+                think_end = full_response.find("</think>", think_start)
                 if think_end != -1:
-                    response["response"] = (
-                        response["response"][:think_start]
-                        + response["response"][think_end + len("</think>") :]
+                    full_response = (
+                        full_response[:think_start]
+                        + full_response[think_end + len("</think>") :]
                     ).strip()
 
-        return (response["response"],)
+        full_response = full_response.strip()
+        assert len(full_response) > 0, "Response is empty"
+
+        return (full_response,)
 
 
 class OllamaChat:
@@ -555,7 +585,6 @@ class OllamaChat:
         keep_alive,
         format,
     ):
-
         client = ollama.Client(host=url)
 
         if format == "text":
@@ -731,7 +760,6 @@ class OllamaChatDual:
         keep_thinking,
         format,
     ):
-
         client = ollama.Client(host=url)
 
         if format == "text":
