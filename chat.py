@@ -109,7 +109,7 @@ class LLMChat:
                     "FLOAT",
                     {"default": 1920, "min": 256, "max": 128000, "step": 128},
                 ),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF}),
+                "seed": ("INT", {"default": 0, "min": 0}),
             },
             "optional": {
                 "messages": ("MSG_LIST", {}),
@@ -403,7 +403,7 @@ class OllamaGenerate:
                     {"multiline": False, "default": "http://127.0.0.1:11434"},
                 ),
                 "model": ((), {}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2**31, "step": 1}),
+                "seed": ("INT", {"default": 0, "min": 0, "step": 1}),
                 "temperature": (
                     "FLOAT",
                     {"default": 0.8, "min": 0, "max": 2, "step": 0.05},
@@ -532,9 +532,7 @@ class OllamaChat:
                     {"multiline": False, "default": "http://127.0.0.1:11434"},
                 ),
                 "model": ((), {}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2**31, "step": 1}),
-                "top_k": ("INT", {"default": 40, "min": 0, "max": 100, "step": 1}),
-                "top_p": ("FLOAT", {"default": 0.9, "min": 0, "max": 1, "step": 0.05}),
+                "seed": ("INT", {"default": 0, "min": 0, "step": 1}),
                 "temperature": (
                     "FLOAT",
                     {"default": 0.8, "min": 0, "max": 2, "step": 0.05},
@@ -547,7 +545,6 @@ class OllamaChat:
                     "INT",
                     {"default": -1, "min": -2, "max": 4096, "step": 1},
                 ),
-                "tfs_z": ("FLOAT", {"default": 1, "min": 1, "max": 1000, "step": 0.05}),
                 "keep_alive": (
                     "INT",
                     {"default": 1, "min": -1, "max": 3600, "step": 1},
@@ -576,12 +573,9 @@ class OllamaChat:
         url,
         model,
         seed,
-        top_k,
-        top_p,
         temperature,
         num_ctx,
         num_predict,
-        tfs_z,
         keep_alive,
         format,
     ):
@@ -610,12 +604,9 @@ class OllamaChat:
 
         options = {
             "seed": seed,
-            "top_k": top_k,
-            "top_p": top_p,
             "temperature": temperature,
             "num_ctx": num_ctx,
             "num_predict": num_predict,
-            "tfs_z": tfs_z,
         }
 
         model = model.strip()
@@ -701,7 +692,7 @@ class OllamaChatDual:
                 ),
                 "model1": ((), {}),
                 "model2": ((), {}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2**31, "step": 1}),
+                "seed": ("INT", {"default": 0, "min": 0, "step": 1}),
                 "top_k": ("INT", {"default": 40, "min": 0, "max": 100, "step": 1}),
                 "top_p": ("FLOAT", {"default": 0.9, "min": 0, "max": 1, "step": 0.05}),
                 "temperature": (
@@ -882,7 +873,7 @@ class GPTImageGeneratorChat:
                 "api_key": ("STRING", {"multiline": False}),
                 "ratio": (["1:1", "2:3", "3:2"], {"default": "1:1"}),
                 "num_images": (["1", "2", "4"], {"default": "4"}),
-                "seed": ("INT", {"default": 66666666, "min": 0, "max": 4294967295}),
+                "seed": ("INT", {"default": 66666666, "min": 0}),
             },
             "optional": {
                 "images": ("IMAGE",),
