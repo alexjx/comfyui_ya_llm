@@ -22,6 +22,11 @@ import comfy.model_management
 from server import PromptServer
 
 
+# Set the logging level for httpx and httpcore to WARNING or ERROR
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+
 @PromptServer.instance.routes.post("/yallm/get_ollama_models")
 async def get_models_endpoint(request):
     data = await request.json()
@@ -109,7 +114,7 @@ class LLMChat:
                     "FLOAT",
                     {"default": 1920, "min": 256, "max": 128000, "step": 128},
                 ),
-                "seed": ("INT", {"default": 0, "min": 0}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF}),
             },
             "optional": {
                 "messages": ("MSG_LIST", {}),
@@ -403,7 +408,10 @@ class OllamaGenerate:
                     {"multiline": False, "default": "http://127.0.0.1:11434"},
                 ),
                 "model": ((), {}),
-                "seed": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "seed": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF, "step": 1},
+                ),
                 "temperature": (
                     "FLOAT",
                     {"default": 0.8, "min": 0, "max": 2, "step": 0.05},
@@ -463,11 +471,12 @@ class OllamaGenerate:
 
         # Use streaming API
         full_response = ""
+        full_reasoning = ""
         print("Starting Ollama generation (streaming):")
 
         stream = client.generate(
             model=model,
-            system="You are an willingly AI insistant. You will follow user's instructions exactly.",
+            system="You are a willing AI assistant. You will follow user's instructions exactly.",
             prompt=prompt,
             options=options,
             keep_alive=f"{keep_alive}m",
@@ -478,6 +487,10 @@ class OllamaGenerate:
 
         # Process the stream and log to console
         for chunk in stream:
+            if "thinking" in chunk:
+                think_text = chunk["thinking"]
+                print(f"\033[33m{think_text}\033[0m", end="", flush=True)
+                full_reasoning += think_text
             if "response" in chunk:
                 response_text = chunk["response"]
                 print(f"\033[32m{response_text}\033[0m", end="", flush=True)
@@ -499,6 +512,8 @@ class OllamaGenerate:
                         full_response[:think_start]
                         + full_response[think_end + len("</think>") :]
                     ).strip()
+        elif full_reasoning:
+            full_response = f"<think>{full_reasoning}</think>\n{full_response}"
 
         full_response = full_response.strip()
         assert len(full_response) > 0, "Response is empty"
@@ -532,7 +547,10 @@ class OllamaChat:
                     {"multiline": False, "default": "http://127.0.0.1:11434"},
                 ),
                 "model": ((), {}),
-                "seed": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "seed": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF, "step": 1},
+                ),
                 "temperature": (
                     "FLOAT",
                     {"default": 0.8, "min": 0, "max": 2, "step": 0.05},
@@ -692,7 +710,10 @@ class OllamaChatDual:
                 ),
                 "model1": ((), {}),
                 "model2": ((), {}),
-                "seed": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "seed": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF, "step": 1},
+                ),
                 "top_k": ("INT", {"default": 40, "min": 0, "max": 100, "step": 1}),
                 "top_p": ("FLOAT", {"default": 0.9, "min": 0, "max": 1, "step": 0.05}),
                 "temperature": (
@@ -873,7 +894,10 @@ class GPTImageGeneratorChat:
                 "api_key": ("STRING", {"multiline": False}),
                 "ratio": (["1:1", "2:3", "3:2"], {"default": "1:1"}),
                 "num_images": (["1", "2", "4"], {"default": "4"}),
-                "seed": ("INT", {"default": 66666666, "min": 0}),
+                "seed": (
+                    "INT",
+                    {"default": 66666666, "min": 0, "max": 0xFFFFFFFFFFFFFFFF},
+                ),
             },
             "optional": {
                 "images": ("IMAGE",),
