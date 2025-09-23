@@ -425,7 +425,7 @@ class OllamaGenerate:
                     {"default": -1, "min": -2, "max": 4096, "step": 1},
                 ),
                 "keep_alive": ("INT", {"default": 0, "min": -1, "max": 60, "step": 1}),
-                "thinking": ("BOOLEAN", {"default": False}),
+                "thinking": (["ON", "OFF", "HIGH", "MEDIUM", "LOW"], {"default": "OFF"}),
                 "keep_reason": ("BOOLEAN", {"default": False}),
                 "format": (["text", "json", ""],),
             },
@@ -474,6 +474,17 @@ class OllamaGenerate:
         full_reasoning = ""
         print("Starting Ollama generation (streaming):")
 
+        if thinking == "OFF":
+            thinking = False
+        elif thinking == "ON":
+            thinking = True
+        elif thinking == "HIGH":
+            thinking = "high"
+        elif thinking == "MEDIUM":
+            thinking = "medium"
+        elif thinking == "LOW":
+            thinking = "low"
+
         stream = client.generate(
             model=model,
             system="You are a willing AI assistant. You will follow user's instructions exactly.",
@@ -481,7 +492,7 @@ class OllamaGenerate:
             options=options,
             keep_alive=f"{keep_alive}m",
             format=format,
-            think=thinking,
+            think=thinking,  # type: ignore
             stream=True,
         )
 
