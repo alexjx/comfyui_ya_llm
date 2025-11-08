@@ -138,7 +138,8 @@ class OpenAIGenerate:
         print(f"Prompt: {prompt[:200]}{'...' if len(prompt) > 200 else ''}")
 
         try:
-            response = client.chat.completions.create(
+            # Use streaming API
+            response_stream = client.chat.completions.create(
                 model=model_name,
                 messages=messages,
                 max_tokens=max_tokens,
@@ -147,12 +148,22 @@ class OpenAIGenerate:
                 frequency_penalty=frequency_penalty,
                 presence_penalty=presence_penalty,
                 seed=seed if seed > 0 else None,
+                stream=True,
             )
 
-            result = response.choices[0].message.content
-            print(f"OpenAI Response: {result[:200]}{'...' if len(result) > 200 else ''}")
+            # Process the stream and accumulate the response
+            full_response = ""
+            print("OpenAI Response (streaming): ", end="", flush=True)
 
-            return (result.strip(),)
+            for chunk in response_stream:
+                if chunk.choices[0].delta.content is not None:
+                    content = chunk.choices[0].delta.content
+                    print(f"\033[32m{content}\033[0m", end="", flush=True)
+                    full_response += content
+
+            print()  # New line after completion
+
+            return (full_response.strip(),)
 
         except Exception as e:
             error_msg = f"OpenAI API Error: {str(e)}"
