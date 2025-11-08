@@ -14,7 +14,7 @@ The plugin follows ComfyUI's custom node architecture:
 
 - **`__init__.py`**: Entry point that exports `NODE_CLASS_MAPPINGS`, `NODE_DISPLAY_NAME_MAPPINGS`, and `WEB_DIRECTORY`
 - **`chat.py`**: Contains all node class definitions and the main API endpoint
-- **`web/js/chat.js`**: Frontend extension for dynamic model loading in Ollama nodes
+- **`web/js/yallm.js`**: Frontend extension for dynamic model loading in Ollama nodes and dynamic inputs for TextTemplate
 
 ### Custom Data Types
 
@@ -36,7 +36,7 @@ All nodes are registered under the category `"Yet Another LLM"` and include:
 
 **Message Chaining**: The `LLMChat` node accepts an optional `messages` parameter of type `MSG_LIST`, enabling multi-turn conversations by passing dialog history between nodes.
 
-**Template System**: Uses Jinja2 for rendering user prompts with variables. The `TextTemplate` node supports up to 8 inputs (chat.py:225-332) and renders them using Jinja2 template globals.
+**Template System**: Uses Jinja2 for rendering user prompts with variables. The `TextTemplate` node supports dynamic inputs (text.py) with no limit, using **kwargs to accept any number of inputs. Inputs are rendered using Jinja2 template globals.
 
 **Thinking Mode Handling**: Ollama nodes support thinking modes (HIGH/MEDIUM/LOW/ON/OFF) and include logic to strip `<think>...</think>` tags from responses unless `keep_reason` or `keep_thinking` is enabled (chat.py:516-528, 666-674, 845-856).
 
@@ -44,7 +44,9 @@ All nodes are registered under the category `"Yet Another LLM"` and include:
 
 **Model Management**: Before Ollama generation, calls `comfy.model_management.unload_all_models()` to free GPU memory (chat.py:469, 644, 824).
 
-**Dynamic Model Loading**: The frontend JavaScript (web/js/chat.js) fetches available Ollama models via the `/yallm/get_ollama_models` endpoint and dynamically populates dropdown widgets.
+**Dynamic Model Loading**: The frontend JavaScript (web/js/yallm.js) fetches available Ollama models via the `/yallm/get_ollama_models` endpoint and dynamically populates dropdown widgets.
+
+**Dynamic Inputs**: The TextTemplate node uses JavaScript in web/js/yallm.js to provide unlimited dynamic inputs. Users can connect as many inputs as needed, which auto-renumber sequentially (input1, input2, input3, etc.).
 
 ## Development Commands
 
@@ -87,8 +89,8 @@ No formal test suite exists. Testing is done through ComfyUI's node graph interf
 
 1. Create a new class with `INPUT_TYPES`, `RETURN_TYPES`, `FUNCTION`, and `CATEGORY` class attributes
 2. Implement the function specified in `FUNCTION`
-3. Add to `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS` at the bottom of chat.py
-4. If the node requires frontend interaction, extend web/js/chat.js
+3. Add to `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS` in the appropriate file (llm_openai.py, llm_ollama.py, or text.py)
+4. If the node requires frontend interaction, extend web/js/yallm.js
 
 ### Seed Handling
 

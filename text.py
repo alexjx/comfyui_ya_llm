@@ -8,61 +8,12 @@ class TextTemplate:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "input1": (
-                    "STRING",
-                    {
-                        "forceInput": True,
-                    },
-                ),
                 "template": (
                     "STRING",
                     {"multiline": True, "default": "{{input1}}"},
                 ),
             },
-            "optional": {
-                "input2": (
-                    "STRING",
-                    {
-                        "forceInput": True,
-                    },
-                ),
-                "input3": (
-                    "STRING",
-                    {
-                        "forceInput": True,
-                    },
-                ),
-                "input4": (
-                    "STRING",
-                    {
-                        "forceInput": True,
-                    },
-                ),
-                "input5": (
-                    "STRING",
-                    {
-                        "forceInput": True,
-                    },
-                ),
-                "input6": (
-                    "STRING",
-                    {
-                        "forceInput": True,
-                    },
-                ),
-                "input7": (
-                    "STRING",
-                    {
-                        "forceInput": True,
-                    },
-                ),
-                "input8": (
-                    "STRING",
-                    {
-                        "forceInput": True,
-                    },
-                ),
-            },
+            "optional": {},
         }
 
     RETURN_TYPES = ("STRING",)
@@ -70,37 +21,24 @@ class TextTemplate:
     CATEGORY = "Yet Another LLM"
     FUNCTION = "render"
 
-    def render(
-        self,
-        input1: str,
-        template: str,
-        input2: str = "",
-        input3: str = "",
-        input4: str = "",
-        input5: str = "",
-        input6: str = "",
-        input7: str = "",
-        input8: str = "",
-    ):
-        # Prepare all inputs
-        inputs = {
-            "input1": input1.strip() if input1 is not None and input1 != "" else "",
-            "input2": input2.strip() if input2 is not None and input2 != "" else "",
-            "input3": input3.strip() if input3 is not None and input3 != "" else "",
-            "input4": input4.strip() if input4 is not None and input4 != "" else "",
-            "input5": input5.strip() if input5 is not None and input5 != "" else "",
-            "input6": input6.strip() if input6 is not None and input6 != "" else "",
-            "input7": input7.strip() if input7 is not None and input7 != "" else "",
-            "input8": input8.strip() if input8 is not None and input8 != "" else "",
-        }
+    def render(self, template: str, **kwargs):
+        # Prepare all inputs from kwargs (dynamic inputs)
+        inputs = {}
+        for key, value in kwargs.items():
+            if key.startswith("input"):
+                # Handle both string and non-string types
+                if isinstance(value, str):
+                    inputs[key] = value.strip() if value else ""
+                else:
+                    inputs[key] = value if value is not None else ""
 
         # Recursive template rendering with limit
         max_iterations = 10
         current_text = template
 
         for iteration in range(max_iterations):
-            # Check if there are any template tags remaining
-            template_pattern = r'\{\{input[1-8]\}\}'
+            # Check if there are any template tags remaining (now supports any input number)
+            template_pattern = r'\{\{input\d+\}\}'
             if not re.search(template_pattern, current_text):
                 # No more template tags found, we're done
                 break
@@ -116,9 +54,12 @@ class TextTemplate:
             current_text = template_str.render()
 
         # Check if we still have template tags after max iterations
-        template_pattern = r'\{\{input[1-8]\}\}'
+        template_pattern = r'\{\{input\d+\}\}'
         if re.search(template_pattern, current_text):
-            raise ValueError(f"Template rendering failed: still contains template tags after {max_iterations} iterations. Possible infinite recursion detected.")
+            raise ValueError(
+                f"Template rendering failed: still contains template tags after {max_iterations} iterations. "
+                f"Possible infinite recursion detected or undefined inputs referenced."
+            )
 
         return (current_text,)
 
