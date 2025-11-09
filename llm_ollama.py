@@ -56,7 +56,7 @@ class OllamaGenerate:
                     "INT",
                     {"default": -1, "min": -2, "max": 4096, "step": 1},
                 ),
-                "keep_alive": ("INT", {"default": 0, "min": -1, "max": 60, "step": 1}),
+                "keep_alive": ("INT", {"default": 0, "min": -1, "max": 3600, "step": 1}),
                 "thinking": (["ON", "OFF", "HIGH", "MEDIUM", "LOW"], {"default": "OFF"}),
                 "keep_reason": ("BOOLEAN", {"default": False}),
                 "format": (["text", "json", ""],),
@@ -122,7 +122,7 @@ class OllamaGenerate:
             system="You are a willing AI assistant. You will follow user's instructions exactly.",
             prompt=prompt,
             options=options,
-            keep_alive=f"{keep_alive}m",
+            keep_alive=f"{keep_alive}s",
             format=format,
             think=thinking,  # type: ignore
             stream=True,
