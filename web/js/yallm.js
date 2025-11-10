@@ -101,8 +101,14 @@ app.registerExtension({
       nodeType.prototype.onNodeCreated = async function () {
         const me = onNodeCreated?.apply(this);
 
-        // Start with input1
-        this.addInput(PREFIX + "1", "*");
+        // Initialize stable counter for this node instance
+        if (!this.inputCounter) {
+          this.inputCounter = 0;
+        }
+
+        // Start with input_1
+        this.inputCounter++;
+        this.addInput(`${PREFIX}_${this.inputCounter}`, "*");
         const slot = this.inputs[this.inputs.length - 1];
         if (slot) {
           slot.color_off = "#666";
@@ -128,32 +134,44 @@ app.registerExtension({
               }
             }
           } else if (event === TypeSlotEvent.Disconnect) {
+            // When disconnecting, just remove the input - don't renumber
             this.removeInput(slot_idx);
           }
 
-          // Renumber all connected inputs sequentially
-          let count = 0;
-          for (let i = 0; i < this.inputs.length; i++) {
+          // Remove any unconnected inputs (except keep one empty slot at the end)
+          for (let i = this.inputs.length - 1; i >= 0; i--) {
             const slot = this.inputs[i];
             if (slot.link === null) {
-              // Remove unconnected inputs (except we'll add one at the end)
-              try {
-                this.removeInput(i);
-                i--; // Adjust index after removal
-              } catch (e) {
-                // Ignore errors when removing
+              // Keep one unconnected slot
+              const unconnectedCount = this.inputs.filter(s => s.link === null).length;
+              if (unconnectedCount > 1) {
+                try {
+                  this.removeInput(i);
+                } catch (e) {
+                  // Ignore errors when removing
+                }
               }
-            } else {
-              // Renumber connected inputs sequentially: input1, input2, input3, etc.
-              count++;
-              slot.name = `${PREFIX}${count}`;
             }
           }
 
           // Ensure there's always one empty slot at the end for the next connection
-          const last = this.inputs[this.inputs.length - 1];
-          if (last === undefined || last.link !== null) {
-            this.addInput(`${PREFIX}${count + 1}`, "*");
+          const hasUnconnected = this.inputs.some(s => s.link === null);
+          if (!hasUnconnected) {
+            // Initialize counter if needed (for loaded workflows)
+            if (!this.inputCounter) {
+              // Find the highest existing input number
+              let maxNum = 0;
+              for (const input of this.inputs) {
+                const match = input.name.match(/input_(\d+)/);
+                if (match) {
+                  maxNum = Math.max(maxNum, parseInt(match[1]));
+                }
+              }
+              this.inputCounter = maxNum;
+            }
+
+            this.inputCounter++;
+            this.addInput(`${PREFIX}_${this.inputCounter}`, "*");
             const newSlot = this.inputs[this.inputs.length - 1];
             if (newSlot) {
               newSlot.color_off = "#666";

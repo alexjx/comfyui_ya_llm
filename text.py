@@ -10,7 +10,7 @@ class TextTemplate:
             "required": {
                 "template": (
                     "STRING",
-                    {"multiline": True, "default": "{{input1}}"},
+                    {"multiline": True, "default": "{{input_1}}"},
                 ),
             },
             "optional": {},
@@ -23,23 +23,25 @@ class TextTemplate:
 
     def render(self, template: str, **kwargs):
         # Prepare all inputs from kwargs (dynamic inputs)
+        # Support both original names (input1, input2) and renamed names
         inputs = {}
         for key, value in kwargs.items():
-            if key.startswith("input"):
-                # Handle both string and non-string types
-                if isinstance(value, str):
-                    inputs[key] = value.strip() if value else ""
-                else:
-                    inputs[key] = value if value is not None else ""
+            # Handle both string and non-string types
+            if isinstance(value, str):
+                inputs[key] = value.strip() if value else ""
+            else:
+                inputs[key] = value if value is not None else ""
 
         # Recursive template rendering with limit
         max_iterations = 10
         current_text = template
 
         for iteration in range(max_iterations):
-            # Check if there are any template tags remaining (now supports any input number)
-            template_pattern = r'\{\{input\d+\}\}'
-            if not re.search(template_pattern, current_text):
+            # Check if there are any template tags remaining
+            # Support both {{inputN}} and custom renamed variables
+            template_pattern = r'\{\{[^}]+\}\}'
+            matches = re.findall(template_pattern, current_text)
+            if not matches:
                 # No more template tags found, we're done
                 break
 
@@ -47,18 +49,26 @@ class TextTemplate:
             template_env = jinja2.Environment(autoescape=False)
             template_str = template_env.from_string(current_text)
 
-            # Set all inputs as globals
+            # Set all inputs as globals (includes both original and renamed names)
             for key, value in inputs.items():
                 template_str.globals[key] = value
 
-            current_text = template_str.render()
+            try:
+                current_text = template_str.render()
+            except jinja2.exceptions.UndefinedError as e:
+                # Provide helpful error message if a variable is used but not defined
+                raise ValueError(
+                    f"Template rendering failed: {str(e)}. "
+                    f"Available variables: {', '.join(sorted(inputs.keys()))}"
+                )
 
-        # Check if we still have template tags after max iterations
-        template_pattern = r'\{\{input\d+\}\}'
-        if re.search(template_pattern, current_text):
+        # Check if we still have unresolved template tags after max iterations
+        remaining_matches = re.findall(r'\{\{[^}]+\}\}', current_text)
+        if remaining_matches:
             raise ValueError(
-                f"Template rendering failed: still contains template tags after {max_iterations} iterations. "
-                f"Possible infinite recursion detected or undefined inputs referenced."
+                f"Template rendering failed: still contains template tags {remaining_matches} after {max_iterations} iterations. "
+                f"Possible infinite recursion detected or undefined inputs referenced. "
+                f"Available variables: {', '.join(sorted(inputs.keys()))}"
             )
 
         return (current_text,)
