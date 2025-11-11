@@ -23,7 +23,6 @@ class TextTemplate:
 
     def render(self, template: str, **kwargs):
         # Prepare all inputs from kwargs (dynamic inputs)
-        # Support both original names (input1, input2) and renamed names
         inputs = {}
         for key, value in kwargs.items():
             # Handle both string and non-string types

@@ -134,47 +134,70 @@ app.registerExtension({
               }
             }
           } else if (event === TypeSlotEvent.Disconnect) {
-            // When disconnecting, just remove the input - don't renumber
+            // Remove disconnected input
             this.removeInput(slot_idx);
           }
 
-          // Remove any unconnected inputs (except keep one empty slot at the end)
-          for (let i = this.inputs.length - 1; i >= 0; i--) {
-            const slot = this.inputs[i];
-            if (slot.link === null) {
-              // Keep one unconnected slot
-              const unconnectedCount = this.inputs.filter(s => s.link === null).length;
-              if (unconnectedCount > 1) {
-                try {
-                  this.removeInput(i);
-                } catch (e) {
-                  // Ignore errors when removing
+          // Remove any extra unconnected inputs (keep only one)
+          const unconnectedSlots = [];
+          for (let i = 0; i < this.inputs.length; i++) {
+            if (this.inputs[i].link === null) {
+              unconnectedSlots.push(i);
+            }
+          }
+
+          // Keep only the last unconnected slot
+          if (unconnectedSlots.length > 1) {
+            for (let i = 0; i < unconnectedSlots.length - 1; i++) {
+              try {
+                this.removeInput(unconnectedSlots[i]);
+                // Adjust remaining indices after removal
+                for (let j = i + 1; j < unconnectedSlots.length; j++) {
+                  unconnectedSlots[j]--;
                 }
+              } catch (e) {
+                // Ignore errors when removing
               }
             }
+          }
+
+          // Renumber all inputs sequentially starting from input_1
+          // This ensures ComfyUI always receives input_1, input_2, input_3, etc. in order
+          let connectedCount = 0;
+          for (let i = 0; i < this.inputs.length; i++) {
+            const slot = this.inputs[i];
+            if (slot.link !== null) {
+              connectedCount++;
+              const expectedName = `${PREFIX}_${connectedCount}`;
+              if (slot.name !== expectedName) {
+                slot.name = expectedName;
+              }
+            }
+          }
+
+          // If all inputs are disconnected, reset counter to 0
+          if (connectedCount === 0) {
+            this.inputCounter = 0;
+          } else {
+            this.inputCounter = connectedCount;
           }
 
           // Ensure there's always one empty slot at the end for the next connection
           const hasUnconnected = this.inputs.some(s => s.link === null);
           if (!hasUnconnected) {
-            // Initialize counter if needed (for loaded workflows)
-            if (!this.inputCounter) {
-              // Find the highest existing input number
-              let maxNum = 0;
-              for (const input of this.inputs) {
-                const match = input.name.match(/input_(\d+)/);
-                if (match) {
-                  maxNum = Math.max(maxNum, parseInt(match[1]));
-                }
-              }
-              this.inputCounter = maxNum;
-            }
-
             this.inputCounter++;
             this.addInput(`${PREFIX}_${this.inputCounter}`, "*");
             const newSlot = this.inputs[this.inputs.length - 1];
             if (newSlot) {
               newSlot.color_off = "#666";
+            }
+          } else {
+            // Renumber the unconnected slot
+            const unconnectedSlot = this.inputs.find(s => s.link === null);
+            if (unconnectedSlot) {
+              const nextNumber = connectedCount + 1;
+              unconnectedSlot.name = `${PREFIX}_${nextNumber}`;
+              this.inputCounter = connectedCount;
             }
           }
 
