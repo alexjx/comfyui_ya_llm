@@ -1,10 +1,13 @@
+import base64
 import logging
 import time
-from typing import Tuple
+from io import BytesIO
 
+import numpy as np
 import ollama
 from aiohttp import web
 from ollama import Client
+from PIL import Image
 
 import comfy.model_management
 from server import PromptServer
@@ -56,12 +59,26 @@ class OllamaGenerate:
                     "INT",
                     {"default": -1, "min": -2, "max": 4096, "step": 1},
                 ),
-                "keep_alive": ("INT", {"default": 0, "min": -1, "max": 3600, "step": 1}),
-                "thinking": (["ON", "OFF", "HIGH", "MEDIUM", "LOW"], {"default": "OFF"}),
+                "keep_alive": (
+                    "INT",
+                    {"default": 0, "min": -1, "max": 3600, "step": 1},
+                ),
+                "thinking": (
+                    ["ON", "OFF", "HIGH", "MEDIUM", "LOW", "NONE"],
+                    {"default": "NONE"},
+                ),
                 "keep_reason": ("BOOLEAN", {"default": False}),
                 "format": (["text", "json", ""],),
             },
-            "optional": {},
+            "optional": {
+                "images": (
+                    "IMAGE",
+                    {
+                        "forceInput": False,
+                        "tooltip": "Provide an image or a batch of images for vision tasks. Make sure that the selected model supports vision, otherwise it may hallucinate the response.",
+                    },
+                ),
+            },
         }
 
     RETURN_TYPES = ("STRING",)
@@ -82,6 +99,7 @@ class OllamaGenerate:
         keep_reason,
         thinking,
         format,
+        images=None,
     ):
         client = ollama.Client(host=url)
 
@@ -96,6 +114,18 @@ class OllamaGenerate:
         }
 
         model = model.strip()
+
+        # Process images if provided
+        images_b64 = None
+        if images is not None:
+            images_b64 = []
+            for batch_number, image in enumerate(images):
+                i = 255.0 * image.cpu().numpy()
+                img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+                buffered = BytesIO()
+                img.save(buffered, format="PNG")
+                img_bytes = base64.b64encode(buffered.getvalue())
+                images_b64.append(str(img_bytes, "utf-8"))
 
         # unload models before proceed
         comfy.model_management.unload_all_models()
@@ -116,11 +146,14 @@ class OllamaGenerate:
             thinking = "medium"
         elif thinking == "LOW":
             thinking = "low"
+        elif thinking == "NONE":
+            thinking = None
 
         stream = client.generate(
             model=model,
             system="You are a willing AI assistant. You will follow user's instructions exactly.",
             prompt=prompt,
+            images=images_b64,
             options=options,
             keep_alive=f"{keep_alive}s",
             format=format,
