@@ -134,6 +134,25 @@ app.registerExtension({
               }
             }
           } else if (event === TypeSlotEvent.Disconnect) {
+            // Properly clean up link metadata before removing input
+            if (node_slot && node_slot.link != null && this.graph) {
+              const link = this.graph.links[node_slot.link];
+              if (link) {
+                // Find origin node and remove link from its outputs
+                const originNode = this.graph.getNodeById(link.origin_id);
+                if (originNode && originNode.outputs && originNode.outputs[link.origin_slot]) {
+                  const output = originNode.outputs[link.origin_slot];
+                  if (output.links) {
+                    const linkIndex = output.links.indexOf(node_slot.link);
+                    if (linkIndex !== -1) {
+                      output.links.splice(linkIndex, 1);
+                    }
+                  }
+                }
+                // Remove from graph links
+                delete this.graph.links[node_slot.link];
+              }
+            }
             // Remove disconnected input
             this.removeInput(slot_idx);
           }
