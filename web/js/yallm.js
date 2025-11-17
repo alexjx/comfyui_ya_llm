@@ -34,7 +34,7 @@ app.registerExtension({
   
   async beforeRegisterNodeDef(nodeType, nodeData, app) {
     // Handle OllamaChat and OllamaGenerate nodes
-    if (["yaOllamaChat", "yaOllamaGenerate",].includes(nodeType?.prototype.comfyClass)) {
+    if (["yaOllamaChat", "yaOllamaGenerate", "yaSEGSCaptioner"].includes(nodeType?.prototype.comfyClass)) {
       const originalNodeCreated = nodeType.prototype.onNodeCreated;
 
       nodeType.prototype.onNodeCreated = async function () {
