@@ -105,10 +105,12 @@ class OpenAIGenerate:
         # Handle images if provided
         if images is not None and len(images) > 0:
             content = []
-            content.append({
-                "type": "text",
-                "text": prompt,
-            })
+            content.append(
+                {
+                    "type": "text",
+                    "text": prompt,
+                }
+            )
 
             # Convert first image to base64 (similar to LLMChat)
             img_tensor = images[0]
@@ -119,17 +121,21 @@ class OpenAIGenerate:
             img.save(buffer, format="PNG")
             img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-            content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/png;base64,{img_base64}",
-                },
-            })
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{img_base64}",
+                    },
+                }
+            )
 
-            messages.append({
-                "role": "user",
-                "content": content,
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": content,
+                }
+            )
         else:
             messages.append({"role": "user", "content": prompt})
 
