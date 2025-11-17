@@ -1,10 +1,12 @@
 import base64
+import gc
 import logging
 import time
 from io import BytesIO
 
 import numpy as np
 import ollama
+import torch
 from aiohttp import web
 from ollama import Client
 from PIL import Image
@@ -16,6 +18,26 @@ from server import PromptServer
 # Set the logging level for httpx and httpcore to WARNING or ERROR
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+
+def clear_memory_for_ollama():
+    """
+    Aggressively clear ComfyUI and PyTorch memory before invoking Ollama.
+    This is useful when Ollama runs on the same machine and may need GPU memory.
+    """
+    # Unload all ComfyUI models
+    comfy.model_management.unload_all_models()
+
+    # Force Python garbage collection
+    gc.collect()
+
+    # Clear PyTorch CUDA cache if available
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
+    # Wait for everything to settle
+    time.sleep(1)
 
 
 @PromptServer.instance.routes.post("/yallm/get_ollama_models")
@@ -127,9 +149,8 @@ class OllamaGenerate:
                 img_bytes = base64.b64encode(buffered.getvalue())
                 images_b64.append(str(img_bytes, "utf-8"))
 
-        # unload models before proceed
-        comfy.model_management.unload_all_models()
-        time.sleep(1)  # wait for the model to be unloaded
+        # Clear memory before invoking Ollama
+        clear_memory_for_ollama()
 
         # Use streaming API
         full_response = ""
@@ -305,9 +326,8 @@ class OllamaChat:
 
         model = model.strip()
 
-        # unload models before proceed
-        comfy.model_management.unload_all_models()
-        time.sleep(1)  # wait for the model to be unloaded
+        # Clear memory before invoking Ollama
+        clear_memory_for_ollama()
 
         messages = [
             {"role": "system", "content": system},
@@ -484,9 +504,8 @@ class OllamaChatDual:
         model1 = model1.strip()
         model2 = model2.strip()
 
-        # unload models before proceed
-        comfy.model_management.unload_all_models()
-        time.sleep(1)  # wait for the model to be unloaded
+        # Clear memory before invoking Ollama
+        clear_memory_for_ollama()
 
         messages = [
             {"role": "system", "content": system},
