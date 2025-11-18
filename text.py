@@ -25,11 +25,15 @@ class TextTemplate:
         # Prepare all inputs from kwargs (dynamic inputs)
         inputs = {}
         for key, value in kwargs.items():
-            # Handle both string and non-string types
-            if isinstance(value, str):
+            # Preserve string stripping for strings while passing other types as-is
+            # Jinja2 natively handles numbers, lists, dicts, booleans, etc.
+            if value is None:
+                inputs[key] = ""
+            elif isinstance(value, str):
                 inputs[key] = value.strip() if value else ""
             else:
-                inputs[key] = value if value is not None else ""
+                # Let Jinja2 handle non-string types directly
+                inputs[key] = value
 
         # Recursive template rendering with limit
         max_iterations = 10
