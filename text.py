@@ -87,6 +87,7 @@ class TextExtract:
             "optional": {
                 "begin": ("STRING", {}),
                 "end": ("STRING", {}),
+                "marker_mode": ("BOOLEAN", {"default": False}),
             },
         }
 
@@ -96,21 +97,34 @@ class TextExtract:
     FUNCTION = "extract"
 
     def extract(
-        self, input_text: str, begin: Optional[str] = None, end: Optional[str] = None
+        self, input_text: str, begin: Optional[str] = None, end: Optional[str] = None,
+        marker_mode: bool = False
     ) -> Tuple[str]:
         if begin:
             start_idx = input_text.find(begin)
             if start_idx == -1:
                 raise ValueError(f"Begin string '{begin}' not found in input text")
+            # If marker_mode is enabled, skip past the begin marker
+            if marker_mode:
+                start_idx += len(begin)
         else:
             start_idx = 0
         if end:
             end_idx = input_text.find(end, start_idx)
             if end_idx == -1:
                 raise ValueError(f"End string '{end}' not found in input text")
+            # If marker_mode is disabled, include the end marker
+            if not marker_mode:
+                end_idx += len(end)
         else:
             end_idx = len(input_text)
-        return (input_text[start_idx:end_idx],)
+
+        # Extract and strip whitespace
+        result = input_text[start_idx:end_idx]
+        if marker_mode:
+            result = result.strip()
+
+        return (result,)
 
 
 class TextRemove:
