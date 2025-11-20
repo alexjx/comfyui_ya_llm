@@ -1,4 +1,7 @@
 openai>=1.40.1
+ollama
 pillow
 numpy
 jinja2
+requests
+tenacity
