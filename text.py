@@ -157,14 +157,45 @@ class TextRemove:
         return (result.strip(),)
 
 
+class ImageLister:
+    """Utility node to collect multiple images into a list"""
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {},
+            "optional": {},  # Dynamic inputs added via JavaScript
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
+    OUTPUT_IS_LIST = (True,)
+    CATEGORY = "Yet Another LLM"
+    FUNCTION = "list_images"
+
+    def list_images(self, **kwargs):
+        """Collect all image inputs and return as a list"""
+        image_list = []
+
+        # Collect images from image_1, image_2, image_3, image_4
+        for key in sorted(kwargs.keys()):
+            if key.startswith("image_"):
+                img = kwargs[key]
+                if img is not None:
+                    image_list.append(img)
+
+        return (image_list,)
+
+
 NODE_CLASS_MAPPINGS = {
     "yaLLMTextTemplate": TextTemplate,
     "yaTextExtract": TextExtract,
     "yaTextRemove": TextRemove,
+    "yaImageLister": ImageLister,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "yaLLMTextTemplate": "Text Template",
     "yaTextExtract": "Text Extract",
     "yaTextRemove": "Text Remove",
+    "yaImageLister": "Image Lister",
 }

@@ -91,11 +91,11 @@ app.registerExtension({
       }
     }
 
-    // Handle TextTemplate node - dynamic inputs
-    if (nodeType?.prototype.comfyClass === "yaLLMTextTemplate") {
+    // Handle TextTemplate and ImageLister nodes - dynamic inputs
+    if (["yaLLMTextTemplate", "yaImageLister"].includes(nodeType?.prototype.comfyClass)) {
       const TypeSlot = { Input: 1, Output: 2 };
       const TypeSlotEvent = { Connect: true, Disconnect: false };
-      const PREFIX = "input";
+      const PREFIX = nodeType.prototype.comfyClass === "yaImageLister" ? "image" : "input";
 
       const onNodeCreated = nodeType.prototype.onNodeCreated;
       nodeType.prototype.onNodeCreated = async function () {

@@ -40,6 +40,47 @@ def clear_memory_for_ollama():
     time.sleep(1)
 
 
+def wait_for_model_unload(client: Client, model_name: str, timeout: int = 30):
+    """
+    Wait for a model to be fully unloaded from VRAM by polling the running models.
+
+    Args:
+        client: The Ollama client instance
+        model_name: The name of the model to wait for unloading
+        timeout: Maximum time to wait in seconds (default: 30)
+    """
+    start_time = time.time()
+    model_name = model_name.strip()
+
+    while time.time() - start_time < timeout:
+        try:
+            running_models = client.ps()
+            # Check if the model is still in the running list
+            is_running = False
+            if hasattr(running_models, 'models'):
+                for model in running_models.models:
+                    if hasattr(model, 'name') and model.name == model_name:
+                        is_running = True
+                        break
+                    elif hasattr(model, 'model') and model.model == model_name:
+                        is_running = True
+                        break
+
+            if not is_running:
+                logging.info(f"Model {model_name} successfully unloaded from VRAM")
+                return True
+
+            # Wait a bit before checking again
+            time.sleep(0.5)
+        except Exception as e:
+            logging.warning(f"Error checking model status: {e}")
+            # If we can't check, assume it's unloaded
+            return False
+
+    logging.warning(f"Timeout waiting for model {model_name} to unload")
+    return False
+
+
 @PromptServer.instance.routes.post("/yallm/get_ollama_models")
 async def get_models_endpoint(request):
     data = await request.json()
@@ -215,6 +256,10 @@ class OllamaGenerate:
         full_response = full_response.strip()
         assert len(full_response) > 0, "Response is empty"
 
+        # Wait for model to unload if keep_alive is 0
+        if keep_alive == 0:
+            wait_for_model_unload(client, model)
+
         return (full_response,)
 
 
@@ -375,6 +420,10 @@ class OllamaChat:
                 f"Phase 2: duration {phase2_resp['total_duration'] / (10**9):.2f}s rate {phase2_resp['eval_count'] / phase2_resp['eval_duration'] * (10**9):.2f} tokens/s"
             )
             phase2_msg = phase2_resp["message"]["content"]
+
+        # Wait for model to unload if keep_alive is 0
+        if keep_alive == 0:
+            wait_for_model_unload(client, model)
 
         return (phase1_msg, phase2_msg)
 
@@ -568,6 +617,13 @@ class OllamaChatDual:
                     )
                     phase2_msg_content = phase2_msg_content.strip()
             phase2_msg = phase2_msg_content
+
+        # Wait for models to unload if keep_alive is 0
+        if keep_alive == 0:
+            wait_for_model_unload(client, model1)
+            # If model2 is different from model1, wait for it too
+            if model2 != model1:
+                wait_for_model_unload(client, model2)
 
         return (phase1_msg, phase2_msg)
 
