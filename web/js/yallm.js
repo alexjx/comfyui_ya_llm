@@ -91,6 +91,31 @@ app.registerExtension({
       }
     }
 
+    // Handle TextTemplate - prevent template widget from accepting connections
+    if (nodeType?.prototype.comfyClass === "yaLLMTextTemplate") {
+      const onNodeCreated = nodeType.prototype.onNodeCreated;
+      nodeType.prototype.onNodeCreated = async function () {
+        const me = onNodeCreated?.apply(this);
+
+        // Find the template widget and mark it as non-convertible
+        const templateWidget = this.widgets?.find((w) => w.name === "template");
+        if (templateWidget) {
+          templateWidget.options = templateWidget.options || {};
+          templateWidget.options.forceInput = false;
+          // Prevent conversion to input by blocking the convert widget function
+          const originalConvertWidgetToInput = this.convertWidgetToInput;
+          this.convertWidgetToInput = function(widget) {
+            if (widget === templateWidget) {
+              return null; // Block conversion for template widget
+            }
+            return originalConvertWidgetToInput?.apply(this, arguments);
+          };
+        }
+
+        return me;
+      };
+    }
+
     // Handle TextTemplate and ImageLister nodes - dynamic inputs
     if (["yaLLMTextTemplate", "yaImageLister"].includes(nodeType?.prototype.comfyClass)) {
       const TypeSlot = { Input: 1, Output: 2 };
