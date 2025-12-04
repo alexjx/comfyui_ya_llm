@@ -1,6 +1,7 @@
 import jinja2
 import re
 from typing import Optional, Tuple
+from datetime import datetime
 
 
 class TextTemplate:
@@ -55,6 +56,9 @@ class TextTemplate:
             # Set all inputs as globals (includes both original and renamed names)
             for key, value in inputs.items():
                 template_str.globals[key] = value
+
+            # Add datetime function
+            template_str.globals['now'] = lambda: datetime.now()
 
             try:
                 current_text = template_str.render()
