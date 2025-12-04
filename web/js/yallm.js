@@ -47,20 +47,21 @@ app.registerExtension({
 
         const updateModels = async () => {
           const url = urlWidget.value;
-          const prevValue = modelWidget.value
-          modelWidget.value = ''
-          modelWidget.options.values = []
+          const prevValue = modelWidget.value;
 
           const models = await fetchModels(url);
 
-          // Update modelWidget options and value
+          // Update modelWidget options
           modelWidget.options.values = models;
           console.debug("Updated modelWidget.options.values:", modelWidget.options.values);
 
+          // Only change the value if the previous model is not in the new list
           if (models.includes(prevValue)) {
-            modelWidget.value = prevValue; // stay on current.
+            modelWidget.value = prevValue; // Keep the current model
           } else if (models.length > 0) {
-            modelWidget.value = models[0]; // set first as default.
+            modelWidget.value = models[0]; // Set first as default only if current model doesn't exist
+          } else {
+            modelWidget.value = ''; // Clear if no models available
           }
 
           console.debug("Updated modelWidget.value:", modelWidget.value);
