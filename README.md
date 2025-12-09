@@ -211,6 +211,7 @@ Powerful Jinja2 template rendering with unlimited dynamic inputs.
 - Unlimited dynamic inputs via JavaScript extension
 - Recursive template rendering (up to 10 iterations)
 - Type-aware: handles strings, numbers, lists, dicts, booleans
+- Built-in `now()` function for datetime formatting
 - Helpful error messages with available variables
 - Auto-numbering of connected inputs
 
@@ -229,7 +230,30 @@ Powerful Jinja2 template rendering with unlimited dynamic inputs.
 # Complex formatting
 Generate an image of {{input_1}} in {{input_2}} style,
 with {{input_3}} lighting
+
+# Datetime formatting (using Python's strftime format codes)
+Current date: {{now().strftime('%Y-%m-%d')}}
+Current time: {{now().strftime('%H:%M:%S')}}
+Full datetime: {{now().strftime('%Y-%m-%d %H:%M:%S')}}
+Custom format: {{now().strftime('%B %d, %Y at %I:%M %p')}}
+
+# Using datetime in prompts
+Photo taken on {{now().strftime('%B %d, %Y')}}, {{input_1}}
 ```
+
+**Common datetime format codes:**
+- `%Y` - Year with century (2024)
+- `%m` - Month as number (01-12)
+- `%d` - Day of month (01-31)
+- `%H` - Hour 24-hour (00-23)
+- `%I` - Hour 12-hour (01-12)
+- `%M` - Minute (00-59)
+- `%S` - Second (00-59)
+- `%p` - AM/PM
+- `%B` - Full month name (January)
+- `%b` - Abbreviated month name (Jan)
+- `%A` - Full weekday name (Monday)
+- `%a` - Abbreviated weekday name (Mon)
 
 ---
 

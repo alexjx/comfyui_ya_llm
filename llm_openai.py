@@ -247,12 +247,8 @@ class GPTImageGeneratorChat:
             base64_images.append(img_str)
         return base64_images
 
-    @tenacity.retry(
-        wait=tenacity.wait_exponential(multiplier=1, max=10),
-        stop=tenacity.stop_after_attempt(5),
-    )
     def download_image(self, url):
-        # No timeout - allow unlimited time for download
+        # No timeout - allow unlimited time for download, no retries
         response = requests.get(url, timeout=None)
         response.raise_for_status()
         image = Image.open(BytesIO(response.content))
@@ -305,12 +301,12 @@ class GPTImageGeneratorChat:
 
         logger.info("-" * 80)
 
-        # Create OpenAI client with no timeout
+        # Create OpenAI client with no timeout and no retries
         client = OpenAI(
             api_key=api_key,
             base_url=api_url,
             timeout=None,  # No timeout
-            max_retries=2,
+            max_retries=0,  # No retries - generation is slow
         )
 
         # Use generations endpoint (DALL-E format)
