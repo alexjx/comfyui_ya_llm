@@ -497,12 +497,249 @@ class GPTImageGeneratorChat:
             return (image_tensors, resp_content)
 
 
+class TuZiImageGenerator:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": (
+                    "STRING",
+                    {"default": "gemini-3-pro-image-preview-2k", "multiline": False},
+                ),
+                "api_url": (
+                    "STRING",
+                    {"default": "https://api.tu-zi.com/v1", "multiline": False},
+                ),
+                "api_key": ("STRING", {"multiline": False}),
+                "size": (
+                    ["1x1", "2x3", "3x2", "3x4", "4x3", "4x5", "5x4", "9x16", "16x9", "21x9"],
+                    {"default": "1x1"},
+                ),
+                "quality": (
+                    ["1k", "2k", "4k"],
+                    {"default": "2k"},
+                ),
+                "num_images": (
+                    "INT",
+                    {"default": 1, "min": 1, "max": 10, "step": 1},
+                ),
+                "seed": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF},
+                ),
+            },
+            "optional": {
+                "images": ("IMAGE",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("images", "response")
+    OUTPUT_IS_LIST = (True, False)
+    FUNCTION = "generate_image"
+    CATEGORY = "Yet Another LLM"
+
+    def encode_images_to_base64(self, image_tensor, max_dimension=1024, quality=85):
+        """Encode image tensors to base64 format"""
+        base64_images = []
+        batch_size = image_tensor.shape[0]
+        for i in range(batch_size):
+            input_image = image_tensor[i].cpu().numpy()
+            input_image = (input_image * 255).astype(np.uint8)
+            pil_image = Image.fromarray(input_image)
+
+            # Resize if needed
+            original_width, original_height = pil_image.width, pil_image.height
+            if original_width > max_dimension or original_height > max_dimension:
+                if original_width > original_height:
+                    new_width = max_dimension
+                    new_height = int(original_height * (max_dimension / original_width))
+                else:
+                    new_height = max_dimension
+                    new_width = int(original_width * (max_dimension / original_height))
+                pil_image = pil_image.resize(
+                    (new_width, new_height), Image.Resampling.LANCZOS
+                )
+
+            buffered = BytesIO()
+            pil_image.save(buffered, format="JPEG", quality=quality)
+            img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            base64_images.append(img_str)
+        return base64_images
+
+    def download_image(self, url):
+        """Download image from URL with no timeout"""
+        response = requests.get(url, timeout=None)
+        response.raise_for_status()
+        image = Image.open(BytesIO(response.content))
+        image = ImageOps.exif_transpose(image)
+        image = image.convert("RGB")
+        return image
+
+    def image_to_tensor(self, image):
+        """Convert PIL image to tensor"""
+        image = np.array(image).astype(np.float32) / 255.0
+        image_tensor = torch.from_numpy(image)[None,]
+        return image_tensor
+
+    def generate_image(
+        self,
+        prompt,
+        model,
+        api_url,
+        api_key,
+        size,
+        quality,
+        num_images,
+        seed,
+        images=None,
+    ):
+        logger.info("=" * 80)
+        logger.info("TuZiImageGenerator - Starting image generation")
+        logger.info("=" * 80)
+        logger.info(f"API URL: {api_url}")
+        logger.info(f"Model: {model}")
+        logger.info(f"Size: {size}")
+        logger.info(f"Quality: {quality}")
+        logger.info(f"Number of images: {num_images}")
+        logger.info(f"Seed: {seed}")
+        logger.info(f"Prompt length: {len(prompt)} characters")
+        logger.info(f"Prompt preview: {prompt[:200]}{'...' if len(prompt) > 200 else ''}")
+
+        # Handle input images
+        image_data = None
+        if images is not None:
+            if isinstance(images, list):
+                image_list = images
+                logger.info(f"Input images: {len(images)} images from list")
+            else:
+                image_list = [images]
+                logger.info(f"Input images: 1 image")
+
+            # Encode all images to base64
+            all_base64 = []
+            for img_idx, img_tensor in enumerate(image_list):
+                logger.info(f"  Encoding image {img_idx + 1}: shape {img_tensor.shape}")
+                base64_images = self.encode_images_to_base64(img_tensor)
+                all_base64.extend(base64_images)
+
+            # Format as data URLs
+            if len(all_base64) == 1:
+                image_data = f"data:image/jpeg;base64,{all_base64[0]}"
+            else:
+                image_data = [f"data:image/jpeg;base64,{b64}" for b64 in all_base64]
+
+            logger.info(f"  Total encoded images: {len(all_base64)}")
+        else:
+            logger.info("Input images: None")
+
+        logger.info("-" * 80)
+
+        # Build request parameters
+        params = {
+            "model": model,
+            "prompt": prompt,
+            "n": num_images,
+            "size": size,
+            "response_format": "url",
+            "quality": quality,
+        }
+
+        # Add image data if provided
+        if image_data is not None:
+            params["image"] = image_data
+
+        logger.info("Sending request to /images/generations endpoint")
+        logger.info("Request parameters:")
+        for key, value in params.items():
+            if key == "image":
+                if isinstance(value, list):
+                    logger.info(f"  - {key}: [{len(value)} images (data URLs)]")
+                else:
+                    logger.info(f"  - {key}: [1 image (data URL)]")
+            elif key == "prompt":
+                logger.info(f"  - {key}: {value[:100]}...")
+            else:
+                logger.info(f"  - {key}: {value}")
+
+        try:
+            # Use raw HTTP request for custom API that supports image parameter
+            import json
+
+            url = f"{api_url.rstrip('/')}/images/generations"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+
+            response = requests.post(url, headers=headers, json=params, timeout=None)
+            response.raise_for_status()
+            response_data = response.json()
+
+            logger.info("Response received successfully")
+
+            # Parse response to match OpenAI format
+            class ImageData:
+                def __init__(self, url):
+                    self.url = url
+
+            class ImageResponse:
+                def __init__(self, data):
+                    self.data = [ImageData(item.get("url")) for item in data]
+
+            response = ImageResponse(response_data.get("data", []))
+
+        except Exception as e:
+            error_msg = f"ERROR in images.generate API call: {type(e).__name__}: {str(e)}"
+            logger.error(error_msg)
+            import traceback
+            logger.error("Full traceback:")
+            logger.error(traceback.format_exc())
+            logger.info("=" * 80)
+            return ([], error_msg)
+
+        # Process response
+        resp_content = f"Generated {len(response.data) if response.data else 0} images using model {model}\n"
+        logger.info(f"API returned {len(response.data) if response.data else 0} image(s)")
+
+        # Download images from URLs
+        image_tensors = []
+        if response.data:
+            logger.info(f"Processing {len(response.data)} URL response(s)...")
+            for idx, img_data in enumerate(response.data):
+                if img_data.url:
+                    url = img_data.url
+                    logger.info(f"  Image {idx + 1}/{len(response.data)}: {url}")
+                    resp_content += f"Image {idx + 1}: {url}\n"
+                    try:
+                        logger.info(f"    Downloading image {idx + 1}...")
+                        pil_image = self.download_image(url)
+                        logger.info(f"    Downloaded: {pil_image.size[0]}x{pil_image.size[1]} {pil_image.mode}")
+                        image_tensors.append(self.image_to_tensor(pil_image))
+                        logger.info(f"    Image {idx + 1} converted to tensor successfully")
+                    except Exception as e:
+                        error_msg = f"ERROR downloading/processing image {idx + 1}: {type(e).__name__}: {str(e)}"
+                        logger.error(error_msg)
+                        resp_content += f"  ERROR: {error_msg}\n"
+                else:
+                    logger.warning(f"  Image {idx + 1} has no URL")
+        else:
+            logger.warning("No image data in response")
+
+        logger.info(f"Image generation completed. Successfully processed {len(image_tensors)} image(s).")
+        logger.info("=" * 80)
+        return (image_tensors, resp_content)
+
+
 NODE_CLASS_MAPPINGS = {
     "yaOpenAIGenerate": OpenAIGenerate,
     "yaGPTImageGeneratorChat": GPTImageGeneratorChat,
+    "yaTuZiImageGenerator": TuZiImageGenerator,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "yaOpenAIGenerate": "OpenAI Generate",
     "yaGPTImageGeneratorChat": "GPT Image Generator Chat",
+    "yaTuZiImageGenerator": "TuZi Image Generator",
 }
