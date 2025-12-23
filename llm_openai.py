@@ -513,12 +513,11 @@ class TuZiImageGenerator:
                 ),
                 "api_key": ("STRING", {"multiline": False}),
                 "size": (
-                    ["1x1", "2x3", "3x2", "3x4", "4x3", "4x5", "5x4", "9x16", "16x9", "21x9"],
-                    {"default": "1x1"},
-                ),
-                "quality": (
-                    ["1k", "2k", "4k"],
-                    {"default": "2k"},
+                    "STRING",
+                    {
+                        "default": "2K",
+                        "tooltip": "Available size options: 1K, 2K, 4K, 1024x1024, 2048x2048, 1024x1536, 1536x1024, 1536x2048, 2048x1536, 2048x3072, 3072x2048",
+                    },
                 ),
                 "num_images": (
                     "INT",
@@ -590,18 +589,21 @@ class TuZiImageGenerator:
         api_url,
         api_key,
         size,
-        quality,
         num_images,
         seed,
         images=None,
     ):
+        # Check if this is a seedream model
+        is_seedream = "seedream" in model.lower()
+
         logger.info("=" * 80)
         logger.info("TuZiImageGenerator - Starting image generation")
         logger.info("=" * 80)
         logger.info(f"API URL: {api_url}")
         logger.info(f"Model: {model}")
         logger.info(f"Size: {size}")
-        logger.info(f"Quality: {quality}")
+        if is_seedream:
+            logger.info(f"Watermark: False (seedream model detected)")
         logger.info(f"Number of images: {num_images}")
         logger.info(f"Seed: {seed}")
         logger.info(f"Prompt length: {len(prompt)} characters")
@@ -643,8 +645,15 @@ class TuZiImageGenerator:
             "n": num_images,
             "size": size,
             "response_format": "url",
-            "quality": quality,
         }
+
+        # Add watermark parameter only for seedream models
+        if is_seedream:
+            params["watermark"] = False
+
+        # Add seed if provided (API supports -1 to 2147483647)
+        if seed > 0:
+            params["seed"] = seed
 
         # Add image data if provided
         if image_data is not None:
@@ -665,8 +674,6 @@ class TuZiImageGenerator:
 
         try:
             # Use raw HTTP request for custom API that supports image parameter
-            import json
-
             url = f"{api_url.rstrip('/')}/images/generations"
             headers = {
                 "Authorization": f"Bearer {api_key}",
