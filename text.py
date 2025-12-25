@@ -42,8 +42,8 @@ class TextTemplate:
 
         for iteration in range(max_iterations):
             # Check if there are any template tags remaining
-            # Support both {{inputN}} and custom renamed variables
-            template_pattern = r'\{\{[^}]+\}\}'
+            # Match {{...}}, {%...%}, and {#...#} (variables, control structures, comments)
+            template_pattern = r'\{[{%#][^}]+[}%#]\}'
             matches = re.findall(template_pattern, current_text)
             if not matches:
                 # No more template tags found, we're done
@@ -51,14 +51,16 @@ class TextTemplate:
 
             # Render the current text
             template_env = jinja2.Environment(autoescape=False)
+            template_env.filters['boolean'] = bool
             template_str = template_env.from_string(current_text)
 
             # Set all inputs as globals (includes both original and renamed names)
             for key, value in inputs.items():
                 template_str.globals[key] = value
 
-            # Add datetime function
+            # Add utility functions
             template_str.globals['now'] = lambda: datetime.now()
+            template_str.globals['bool'] = bool
 
             try:
                 current_text = template_str.render()
@@ -70,7 +72,7 @@ class TextTemplate:
                 )
 
         # Check if we still have unresolved template tags after max iterations
-        remaining_matches = re.findall(r'\{\{[^}]+\}\}', current_text)
+        remaining_matches = re.findall(r'\{[{%#][^}]+[}%#]\}', current_text)
         if remaining_matches:
             raise ValueError(
                 f"Template rendering failed: still contains template tags {remaining_matches} after {max_iterations} iterations. "
