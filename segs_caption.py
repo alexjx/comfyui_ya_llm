@@ -206,7 +206,7 @@ class SEGSCaptioner:
 
             # Call Ollama to caption the image
             try:
-                logging.info(f"SEGSCaptioner: Captioning seg {idx}/{len(seg_list)}...")
+                print(f"\n\033[36m[Seg {idx}/{len(seg_list)}]\033[0m ", end="", flush=True)
 
                 options["seed"] = seed + idx - 1  # Increment seed per seg
 
@@ -214,24 +214,34 @@ class SEGSCaptioner:
                 is_last_seg = idx == len(seg_list)
                 effective_keep_alive = 0 if is_last_seg else (1 if has_multiple_segs else keep_alive)
 
-                response = client.generate(
+                stream = client.generate(
                     model=model,
                     prompt=prompt_template,
                     images=[img_b64],
                     options=options,
                     keep_alive=f"{effective_keep_alive}s",
+                    stream=True,
                 )
 
-                caption = response["response"].strip()
+                caption = ""
+                for chunk in stream:
+                    if "response" in chunk:
+                        response_text = chunk["response"]
+                        print(f"\033[32m{response_text}\033[0m", end="", flush=True)
+                        caption += response_text
+                    if "done" in chunk and chunk["done"]:
+                        print()  # New line after completion
+                        logging.info(
+                            f"SEGSCaptioner seg {idx}: {chunk.get('prompt_eval_count', 0)} prompt tokens, "
+                            f"{chunk.get('eval_count', 0)} response tokens in "
+                            f"{chunk.get('total_duration', 0) / (10**9):.2f}s "
+                            f"({chunk.get('eval_count', 0) / chunk.get('eval_duration', 1) * (10**9):.2f} tokens/s)"
+                        )
+                        break
 
-                # Remove any newlines from caption to keep format clean
-                caption = caption.replace("\n", " ").replace("\r", " ")
+                caption = caption.strip().replace("\n", " ").replace("\r", " ")
 
                 captions.append(f"[{label}] {caption}")
-
-                logging.info(
-                    f"SEGSCaptioner: Seg {idx} captioned: {caption[:50]}{'...' if len(caption) > 50 else ''}"
-                )
 
             except Exception as e:
                 logging.error(f"SEGSCaptioner: Failed to caption seg {idx}: {e}")
