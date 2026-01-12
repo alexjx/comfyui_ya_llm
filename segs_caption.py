@@ -1,8 +1,10 @@
 import base64
 import logging
+import re
 import time
 from io import BytesIO
 
+import jinja2
 import numpy as np
 import ollama
 import torch
@@ -109,6 +111,61 @@ class SEGSCaptioner:
 
         return (th, tw), new_segs
 
+    def render_prompt(self, template, seg, index, total_segments, image_tensor, crop_region):
+        """Render Jinja2 template with seg context relative to cropped image"""
+        # Get cropped image dimensions
+        height, width = image_tensor.shape[0], image_tensor.shape[1]
+
+        # Calculate bbox relative to the cropped region
+        # bbox is in original image coords, crop_region defines the crop
+        x1_crop, y1_crop, x2_crop, y2_crop = crop_region
+        bx1, by1, bx2, by2 = seg.bbox
+
+        # Convert to crop-relative coordinates
+        bbox_rel = (
+            bx1 - x1_crop,
+            by1 - y1_crop,
+            bx2 - x1_crop,
+            by2 - y1_crop,
+        )
+
+        # Normalized bbox (0.0 to 1.0)
+        bbox_norm = (
+            bbox_rel[0] / width if width > 0 else 0,
+            bbox_rel[1] / height if height > 0 else 0,
+            bbox_rel[2] / width if width > 0 else 0,
+            bbox_rel[3] / height if height > 0 else 0,
+        )
+
+        context = {
+            'label': seg.label if seg.label else "",
+            'index': index,
+            'total_segments': total_segments,
+            'confidence': seg.confidence,
+            'width': width,
+            'height': height,
+            'bbox': bbox_rel,
+            'bbox_norm': bbox_norm,
+            'has_label': bool(seg.label),
+        }
+
+        # Check if template contains Jinja2 syntax
+        if not re.search(r'\{[{%#]', template):
+            # No Jinja2 syntax, return as-is (backward compatible)
+            return template
+
+        # Render with Jinja2
+        try:
+            env = jinja2.Environment(autoescape=False)
+            tpl = env.from_string(template)
+            return tpl.render(**context)
+        except jinja2.exceptions.TemplateError as e:
+            # Fail the node on template errors
+            raise ValueError(
+                f"Template rendering failed for segment {index}: {str(e)}. "
+                f"Available variables: {', '.join(sorted(context.keys()))}"
+            )
+
     def caption_segs(
         self,
         segs,
@@ -201,12 +258,24 @@ class SEGSCaptioner:
                 captions.append(f"[{label}] (image conversion failed)")
                 continue
 
+            # Render prompt with seg context
+            try:
+                rendered_prompt = self.render_prompt(
+                    prompt_template, seg, idx, len(seg_list),
+                    image_tensor, seg.crop_region
+                )
+            except ValueError as e:
+                logging.error(f"SEGSCaptioner: {e}")
+                raise
+
             # Clear memory before Ollama call
             clear_memory_for_ollama()
 
             # Call Ollama to caption the image
             try:
-                print(f"\n\033[36m[Seg {idx}/{len(seg_list)}]\033[0m ", end="", flush=True)
+                print(f"\n\033[36m[Seg {idx}/{len(seg_list)}]\033[0m", flush=True)
+                print(f"\033[33mPrompt: {rendered_prompt}\033[0m", flush=True)
+                print(f"\033[32m", end="", flush=True)
 
                 options["seed"] = seed + idx - 1  # Increment seed per seg
 
@@ -216,7 +285,7 @@ class SEGSCaptioner:
 
                 stream = client.generate(
                     model=model,
-                    prompt=prompt_template,
+                    prompt=rendered_prompt,
                     images=[img_b64],
                     options=options,
                     keep_alive=f"{effective_keep_alive}s",
@@ -359,6 +428,61 @@ class SEGSCaptionerV2:
 
         return (th, tw), new_segs
 
+    def render_prompt(self, template, seg, index, total_segments, image_tensor, crop_region):
+        """Render Jinja2 template with seg context relative to cropped image"""
+        # Get cropped image dimensions
+        height, width = image_tensor.shape[0], image_tensor.shape[1]
+
+        # Calculate bbox relative to the cropped region
+        # bbox is in original image coords, crop_region defines the crop
+        x1_crop, y1_crop, x2_crop, y2_crop = crop_region
+        bx1, by1, bx2, by2 = seg.bbox
+
+        # Convert to crop-relative coordinates
+        bbox_rel = (
+            bx1 - x1_crop,
+            by1 - y1_crop,
+            bx2 - x1_crop,
+            by2 - y1_crop,
+        )
+
+        # Normalized bbox (0.0 to 1.0)
+        bbox_norm = (
+            bbox_rel[0] / width if width > 0 else 0,
+            bbox_rel[1] / height if height > 0 else 0,
+            bbox_rel[2] / width if width > 0 else 0,
+            bbox_rel[3] / height if height > 0 else 0,
+        )
+
+        context = {
+            'label': seg.label if seg.label else "",
+            'index': index,
+            'total_segments': total_segments,
+            'confidence': seg.confidence,
+            'width': width,
+            'height': height,
+            'bbox': bbox_rel,
+            'bbox_norm': bbox_norm,
+            'has_label': bool(seg.label),
+        }
+
+        # Check if template contains Jinja2 syntax
+        if not re.search(r'\{[{%#]', template):
+            # No Jinja2 syntax, return as-is (backward compatible)
+            return template
+
+        # Render with Jinja2
+        try:
+            env = jinja2.Environment(autoescape=False)
+            tpl = env.from_string(template)
+            return tpl.render(**context)
+        except jinja2.exceptions.TemplateError as e:
+            # Fail the node on template errors
+            raise ValueError(
+                f"Template rendering failed for segment {index}: {str(e)}. "
+                f"Available variables: {', '.join(sorted(context.keys()))}"
+            )
+
     def caption_segs(
         self,
         segs,
@@ -439,10 +563,22 @@ class SEGSCaptionerV2:
                 captions.append("(image conversion failed)")
                 continue
 
+            # Render prompt with seg context
+            try:
+                rendered_prompt = self.render_prompt(
+                    prompt_template, seg, idx, len(seg_list),
+                    image_tensor, seg.crop_region
+                )
+            except ValueError as e:
+                logging.error(f"SEGSCaptionerV2: {e}")
+                raise
+
             clear_memory_for_ollama()
 
             try:
-                print(f"\n\033[36m[Seg {idx}/{len(seg_list)}]\033[0m ", end="", flush=True)
+                print(f"\n\033[36m[Seg {idx}/{len(seg_list)}]\033[0m", flush=True)
+                print(f"\033[33mPrompt: {rendered_prompt}\033[0m", flush=True)
+                print(f"\033[32m", end="", flush=True)
 
                 options["seed"] = seed + idx - 1
 
@@ -452,7 +588,7 @@ class SEGSCaptionerV2:
 
                 stream = client.generate(
                     model=model,
-                    prompt=prompt_template,
+                    prompt=rendered_prompt,
                     images=[img_b64],
                     options=options,
                     keep_alive=f"{effective_keep_alive}s",
