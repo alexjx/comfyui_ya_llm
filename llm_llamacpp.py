@@ -393,6 +393,19 @@ class LlamacppGenerate:
 
             print()  # Newline after generation
 
+            # Get timing statistics from llama.cpp
+            timings = llama_cpp.llama_perf_context(llm_model._ctx.ctx)
+            prompt_tokens = timings.n_p_eval
+            completion_tokens = timings.n_eval
+            total_time_s = (timings.t_p_eval_ms + timings.t_eval_ms) / 1000.0
+
+            # Display statistics similar to Ollama format
+            if completion_tokens > 0 and timings.t_eval_ms > 0:
+                tokens_per_sec = completion_tokens / (timings.t_eval_ms / 1000.0)
+                logger.info(
+                    f"Generated: prompt {prompt_tokens} tokens - response {completion_tokens} tokens in {total_time_s:.2f}s ({tokens_per_sec:.2f} tokens/s)"
+                )
+
         except torch.cuda.OutOfMemoryError:
             error = "CUDA OOM. Try reducing n_gpu_layers or use smaller model."
             logger.error(error)

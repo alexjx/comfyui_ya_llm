@@ -9,6 +9,7 @@ import numpy as np
 import ollama
 import torch
 from PIL import Image
+from llama_cpp import llama_cpp
 
 import folder_paths
 from .llm_llamacpp import (
@@ -980,9 +981,17 @@ class LlamacppSEGSCaptioner:
 
                 print()  # Newline after completion
 
-                logging.info(
-                    f"LlamacppSEGSCaptioner seg {idx}: Generated {len(caption)} characters"
-                )
+                # Get timing statistics from llama.cpp
+                timings = llama_cpp.llama_perf_context(llm_model._ctx.ctx)
+                prompt_tokens = timings.n_p_eval
+                completion_tokens = timings.n_eval
+                total_time_s = (timings.t_p_eval_ms + timings.t_eval_ms) / 1000.0
+
+                if completion_tokens > 0 and timings.t_eval_ms > 0:
+                    tokens_per_sec = completion_tokens / (timings.t_eval_ms / 1000.0)
+                    logging.info(
+                        f"LlamacppSEGSCaptioner seg {idx}: prompt {prompt_tokens} tokens - response {completion_tokens} tokens in {total_time_s:.2f}s ({tokens_per_sec:.2f} tokens/s)"
+                    )
 
                 caption = caption.strip().replace("\n", " ").replace("\r", " ")
                 captions.append(f"[{label}] {caption}")
@@ -1328,9 +1337,17 @@ class LlamacppSEGSCaptionerV2:
 
                 print()  # Newline after completion
 
-                logging.info(
-                    f"LlamacppSEGSCaptionerV2 seg {idx}: Generated {len(caption)} characters"
-                )
+                # Get timing statistics from llama.cpp
+                timings = llama_cpp.llama_perf_context(llm_model._ctx.ctx)
+                prompt_tokens = timings.n_p_eval
+                completion_tokens = timings.n_eval
+                total_time_s = (timings.t_p_eval_ms + timings.t_eval_ms) / 1000.0
+
+                if completion_tokens > 0 and timings.t_eval_ms > 0:
+                    tokens_per_sec = completion_tokens / (timings.t_eval_ms / 1000.0)
+                    logging.info(
+                        f"LlamacppSEGSCaptionerV2 seg {idx}: prompt {prompt_tokens} tokens - response {completion_tokens} tokens in {total_time_s:.2f}s ({tokens_per_sec:.2f} tokens/s)"
+                    )
 
                 caption = caption.strip().replace("\n", " ").replace("\r", " ")
                 captions.append(caption)
