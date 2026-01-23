@@ -374,7 +374,7 @@ class LlamacppGenerate:
         full_response = ""
         print(f"Llamacpp generation ({os.path.basename(model)}):")
         # print(f"\033[33mPrompt: {prompt}\033[0m")
-        print()  # Newline between prompt and response
+        # print()  # Newline between prompt and response
 
         try:
             stream = llm_model.create_chat_completion(
