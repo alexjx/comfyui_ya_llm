@@ -1,0 +1,15 @@
+# Ruff configuration for comfyui_ya_llm
+
+# Line length
+line-length = 88
+
+[lint]
+# Ignore print statements (T201) - they're used for streaming output to console
+ignore = ["T201"]
+
+[format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"

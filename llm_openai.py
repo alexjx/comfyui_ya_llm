@@ -7,7 +7,6 @@ from typing import Any, Dict, List
 
 import numpy as np
 import requests
-import tenacity
 import torch
 from openai import OpenAI
 from PIL import Image, ImageOps
@@ -283,7 +282,9 @@ class GPTImageGeneratorChat:
         logger.info(f"Number of images: {num_images}")
         logger.info(f"Seed: {seed}")
         logger.info(f"Prompt length: {len(prompt)} characters")
-        logger.info(f"Prompt preview: {prompt[:200]}{'...' if len(prompt) > 200 else ''}")
+        logger.info(
+            f"Prompt preview: {prompt[:200]}{'...' if len(prompt) > 200 else ''}"
+        )
 
         # Handle images as either a single tensor or a list from ImageLister
         image_list = []
@@ -295,7 +296,7 @@ class GPTImageGeneratorChat:
             else:
                 # Single IMAGE input - wrap in list
                 image_list = [images]
-                logger.info(f"Images provided: Yes (1 image)")
+                logger.info("Images provided: Yes (1 image)")
         else:
             logger.info("Images provided: No")
 
@@ -319,8 +320,12 @@ class GPTImageGeneratorChat:
                 # For generations API, we can include image URLs in the prompt
                 # Note: The API expects image URLs in the prompt text
                 # Image-to-image may require chat mode
-                logger.warning(f"Image input provided ({len(image_list)} images). Consider using 'chat' mode for image-to-image generation.")
-                logger.warning("The 'generations' endpoint may not support image inputs properly.")
+                logger.warning(
+                    f"Image input provided ({len(image_list)} images). Consider using 'chat' mode for image-to-image generation."
+                )
+                logger.warning(
+                    "The 'generations' endpoint may not support image inputs properly."
+                )
 
             try:
                 logger.info(f"Sending request to: {api_url}/images/generations")
@@ -329,7 +334,7 @@ class GPTImageGeneratorChat:
                 logger.info(f"  - prompt: {full_prompt[:100]}...")
                 logger.info(f"  - n: {num_images}")
                 logger.info(f"  - size: {size}")
-                logger.info(f"  - response_format: url")
+                logger.info("  - response_format: url")
 
                 # Call the images.generate API (always use url format)
                 response = client.images.generate(
@@ -342,15 +347,20 @@ class GPTImageGeneratorChat:
 
                 logger.info("Response received successfully")
             except Exception as e:
-                error_msg = f"ERROR in images.generate API call: {type(e).__name__}: {str(e)}"
+                error_msg = (
+                    f"ERROR in images.generate API call: {type(e).__name__}: {str(e)}"
+                )
                 logger.error(error_msg)
                 import traceback
+
                 logger.error("Full traceback:")
                 logger.error(traceback.format_exc())
                 return ([], error_msg)
 
             resp_content = f"Generated {len(response.data) if response.data else 0} images using model {model}\n"
-            logger.info(f"API returned {len(response.data) if response.data else 0} image(s)")
+            logger.info(
+                f"API returned {len(response.data) if response.data else 0} image(s)"
+            )
 
             # Download images from URLs
             image_tensors = []
@@ -364,9 +374,13 @@ class GPTImageGeneratorChat:
                         try:
                             logger.info(f"    Downloading image {idx + 1}...")
                             pil_image = self.download_image(url)
-                            logger.info(f"    Image {idx + 1} downloaded: {pil_image.size[0]}x{pil_image.size[1]} {pil_image.mode}")
+                            logger.info(
+                                f"    Image {idx + 1} downloaded: {pil_image.size[0]}x{pil_image.size[1]} {pil_image.mode}"
+                            )
                             image_tensors.append(self.image_to_tensor(pil_image))
-                            logger.info(f"    Image {idx + 1} converted to tensor successfully")
+                            logger.info(
+                                f"    Image {idx + 1} converted to tensor successfully"
+                            )
                         except Exception as e:
                             error_msg = f"ERROR downloading/processing image {idx + 1}: {type(e).__name__}: {str(e)}"
                             logger.error(error_msg)
@@ -376,16 +390,16 @@ class GPTImageGeneratorChat:
             else:
                 logger.warning("No image data in response")
 
-            logger.info(f"Image generation completed. Successfully processed {len(image_tensors)} image(s).")
+            logger.info(
+                f"Image generation completed. Successfully processed {len(image_tensors)} image(s)."
+            )
             logger.info("=" * 80)
             return (image_tensors, resp_content)
 
         # Use chat completions endpoint (original behavior)
         else:
             logger.info("Using chat completions endpoint (streaming)")
-            full_prompt = (
-                f"{prompt}\n\nOutput image ratio: {size}\nOutput image count: {num_images}"
-            )
+            full_prompt = f"{prompt}\n\nOutput image ratio: {size}\nOutput image count: {num_images}"
             user_content: List[Dict[str, Any]] = [
                 {
                     "type": "text",
@@ -400,7 +414,9 @@ class GPTImageGeneratorChat:
                     # Encode each image tensor
                     base64_images = self.encode_images_to_base64(img_tensor)
                     for b64_idx, img_b64 in enumerate(base64_images):
-                        logger.info(f"    Adding sub-image {b64_idx + 1} to request (base64 length: {len(img_b64)} chars)")
+                        logger.info(
+                            f"    Adding sub-image {b64_idx + 1} to request (base64 length: {len(img_b64)} chars)"
+                        )
                         user_content.append(
                             {
                                 "type": "image_url",
@@ -411,7 +427,9 @@ class GPTImageGeneratorChat:
                         )
 
             logger.info(f"Sending streaming request to: {api_url}/chat/completions")
-            logger.info(f"Message content parts: {len(user_content)} (text + {len(user_content) - 1} images)")
+            logger.info(
+                f"Message content parts: {len(user_content)} (text + {len(user_content) - 1} images)"
+            )
 
             try:
                 resp_stream = client.chat.completions.create(
@@ -440,12 +458,17 @@ class GPTImageGeneratorChat:
 
                 print()
                 logger.info("-" * 80)
-                logger.info(f"Stream completed. Received {chunk_count} chunks, total {len(resp_content)} characters")
+                logger.info(
+                    f"Stream completed. Received {chunk_count} chunks, total {len(resp_content)} characters"
+                )
 
             except Exception as e:
-                error_msg = f"ERROR in chat.completions API call: {type(e).__name__}: {str(e)}"
+                error_msg = (
+                    f"ERROR in chat.completions API call: {type(e).__name__}: {str(e)}"
+                )
                 logger.error(error_msg)
                 import traceback
+
                 logger.error("Full traceback:")
                 logger.error(traceback.format_exc())
                 logger.info("=" * 80)
@@ -462,11 +485,15 @@ class GPTImageGeneratorChat:
             # First try markdown images
             matches = re.findall(image_pattern, resp_content)
             if matches:
-                logger.info(f"Found {len(matches)} markdown image(s) with ![...](url) format")
+                logger.info(
+                    f"Found {len(matches)} markdown image(s) with ![...](url) format"
+                )
             else:
                 # Fall back to markdown links
                 matches = re.findall(link_pattern, resp_content)
-                logger.info(f"Found {len(matches)} markdown link(s) with [text](url) format")
+                logger.info(
+                    f"Found {len(matches)} markdown link(s) with [text](url) format"
+                )
 
             result_links = []
             for idx, match in enumerate(matches):
@@ -480,9 +507,13 @@ class GPTImageGeneratorChat:
             result_images = []
             for idx, link in enumerate(result_links):
                 try:
-                    logger.info(f"  Downloading image {idx + 1}/{len(result_links)}: {link}")
+                    logger.info(
+                        f"  Downloading image {idx + 1}/{len(result_links)}: {link}"
+                    )
                     pil_image = self.download_image(link)
-                    logger.info(f"    Downloaded: {pil_image.size[0]}x{pil_image.size[1]} {pil_image.mode}")
+                    logger.info(
+                        f"    Downloaded: {pil_image.size[0]}x{pil_image.size[1]} {pil_image.mode}"
+                    )
                     result_images.append(pil_image)
                 except Exception as e:
                     error_msg = f"ERROR downloading image {idx + 1}: {type(e).__name__}: {str(e)}"
@@ -491,7 +522,9 @@ class GPTImageGeneratorChat:
             # convert the images to tensors
             logger.info(f"Converting {len(result_images)} image(s) to tensors...")
             image_tensors = [self.image_to_tensor(img) for img in result_images]
-            logger.info(f"Successfully converted {len(image_tensors)} image(s) to tensors")
+            logger.info(
+                f"Successfully converted {len(image_tensors)} image(s) to tensors"
+            )
 
             logger.info("=" * 80)
             return (image_tensors, resp_content)
@@ -603,11 +636,13 @@ class TuZiImageGenerator:
         logger.info(f"Model: {model}")
         logger.info(f"Size: {size}")
         if is_seedream:
-            logger.info(f"Watermark: False (seedream model detected)")
+            logger.info("Watermark: False (seedream model detected)")
         logger.info(f"Number of images: {num_images}")
         logger.info(f"Seed: {seed}")
         logger.info(f"Prompt length: {len(prompt)} characters")
-        logger.info(f"Prompt preview: {prompt[:200]}{'...' if len(prompt) > 200 else ''}")
+        logger.info(
+            f"Prompt preview: {prompt[:200]}{'...' if len(prompt) > 200 else ''}"
+        )
 
         # Handle input images
         image_data = None
@@ -617,7 +652,7 @@ class TuZiImageGenerator:
                 logger.info(f"Input images: {len(images)} images from list")
             else:
                 image_list = [images]
-                logger.info(f"Input images: 1 image")
+                logger.info("Input images: 1 image")
 
             # Encode all images to base64
             all_base64 = []
@@ -698,9 +733,12 @@ class TuZiImageGenerator:
             response = ImageResponse(response_data.get("data", []))
 
         except Exception as e:
-            error_msg = f"ERROR in images.generate API call: {type(e).__name__}: {str(e)}"
+            error_msg = (
+                f"ERROR in images.generate API call: {type(e).__name__}: {str(e)}"
+            )
             logger.error(error_msg)
             import traceback
+
             logger.error("Full traceback:")
             logger.error(traceback.format_exc())
             logger.info("=" * 80)
@@ -708,7 +746,9 @@ class TuZiImageGenerator:
 
         # Process response
         resp_content = f"Generated {len(response.data) if response.data else 0} images using model {model}\n"
-        logger.info(f"API returned {len(response.data) if response.data else 0} image(s)")
+        logger.info(
+            f"API returned {len(response.data) if response.data else 0} image(s)"
+        )
 
         # Download images from URLs
         image_tensors = []
@@ -722,9 +762,13 @@ class TuZiImageGenerator:
                     try:
                         logger.info(f"    Downloading image {idx + 1}...")
                         pil_image = self.download_image(url)
-                        logger.info(f"    Downloaded: {pil_image.size[0]}x{pil_image.size[1]} {pil_image.mode}")
+                        logger.info(
+                            f"    Downloaded: {pil_image.size[0]}x{pil_image.size[1]} {pil_image.mode}"
+                        )
                         image_tensors.append(self.image_to_tensor(pil_image))
-                        logger.info(f"    Image {idx + 1} converted to tensor successfully")
+                        logger.info(
+                            f"    Image {idx + 1} converted to tensor successfully"
+                        )
                     except Exception as e:
                         error_msg = f"ERROR downloading/processing image {idx + 1}: {type(e).__name__}: {str(e)}"
                         logger.error(error_msg)
@@ -734,7 +778,9 @@ class TuZiImageGenerator:
         else:
             logger.warning("No image data in response")
 
-        logger.info(f"Image generation completed. Successfully processed {len(image_tensors)} image(s).")
+        logger.info(
+            f"Image generation completed. Successfully processed {len(image_tensors)} image(s)."
+        )
         logger.info("=" * 80)
         return (image_tensors, resp_content)
 

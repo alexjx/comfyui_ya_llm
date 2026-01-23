@@ -5,3 +5,25 @@ numpy
 jinja2
 requests
 tenacity
+
+# LlamaCpp with CUDA support
+# Install with uv using one of the options below:
+
+# Option 1 (Recommended): Official prebuilt wheels with CUDA 12.1
+# uv pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
+
+# Option 2: Other CUDA versions
+# CUDA 12.2: uv pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu122
+# CUDA 12.4: uv pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+# CUDA 11.8: uv pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu118
+
+# Option 3: Community wheels (jllllll) with AVX optimizations
+# uv pip install llama-cpp-python --extra-index-url https://jllllll.github.io/llama-cpp-python-cuBLAS-wheels/AVX2/cu121
+
+# Option 4: CPU only
+# uv pip install llama-cpp-python
+
+# Option 5: Build from source with CUDA (best performance)
+# CMAKE_ARGS="-DGGML_CUDA=on" uv pip install llama-cpp-python --no-cache
+
+# See docs/LLAMACPP_INSTALL.md for detailed installation instructions

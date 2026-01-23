@@ -57,12 +57,12 @@ def wait_for_model_unload(client: Client, model_name: str, timeout: int = 30):
             running_models = client.ps()
             # Check if the model is still in the running list
             is_running = False
-            if hasattr(running_models, 'models'):
+            if hasattr(running_models, "models"):
                 for model in running_models.models:
-                    if hasattr(model, 'name') and model.name == model_name:
+                    if hasattr(model, "name") and model.name == model_name:
                         is_running = True
                         break
-                    elif hasattr(model, 'model') and model.model == model_name:
+                    elif hasattr(model, "model") and model.model == model_name:
                         is_running = True
                         break
 
@@ -90,7 +90,7 @@ async def get_models_endpoint(request):
     try:
         models = [model["model"] for model in models]
         return web.json_response(models)
-    except Exception as e:
+    except Exception:
         models = [model["name"] for model in models]
         return web.json_response(models)
 

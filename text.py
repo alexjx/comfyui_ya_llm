@@ -43,7 +43,7 @@ class TextTemplate:
         for iteration in range(max_iterations):
             # Check if there are any template tags remaining
             # Match {{...}}, {%...%}, and {#...#} (variables, control structures, comments)
-            template_pattern = r'\{[{%#][^}]+[}%#]\}'
+            template_pattern = r"\{[{%#][^}]+[}%#]\}"
             matches = re.findall(template_pattern, current_text)
             if not matches:
                 # No more template tags found, we're done
@@ -51,7 +51,7 @@ class TextTemplate:
 
             # Render the current text
             template_env = jinja2.Environment(autoescape=False)
-            template_env.filters['boolean'] = bool
+            template_env.filters["boolean"] = bool
             template_str = template_env.from_string(current_text)
 
             # Set all inputs as globals (includes both original and renamed names)
@@ -59,8 +59,8 @@ class TextTemplate:
                 template_str.globals[key] = value
 
             # Add utility functions
-            template_str.globals['now'] = lambda: datetime.now()
-            template_str.globals['bool'] = bool
+            template_str.globals["now"] = lambda: datetime.now()
+            template_str.globals["bool"] = bool
 
             try:
                 current_text = template_str.render()
@@ -72,7 +72,7 @@ class TextTemplate:
                 )
 
         # Check if we still have unresolved template tags after max iterations
-        remaining_matches = re.findall(r'\{[{%#][^}]+[}%#]\}', current_text)
+        remaining_matches = re.findall(r"\{[{%#][^}]+[}%#]\}", current_text)
         if remaining_matches:
             raise ValueError(
                 f"Template rendering failed: still contains template tags {remaining_matches} after {max_iterations} iterations. "
@@ -103,8 +103,11 @@ class TextExtract:
     FUNCTION = "extract"
 
     def extract(
-        self, input_text: str, begin: Optional[str] = None, end: Optional[str] = None,
-        marker_mode: bool = False
+        self,
+        input_text: str,
+        begin: Optional[str] = None,
+        end: Optional[str] = None,
+        marker_mode: bool = False,
     ) -> Tuple[str]:
         if begin:
             start_idx = input_text.find(begin)
@@ -165,6 +168,7 @@ class TextRemove:
 
 class ImageLister:
     """Utility node to collect multiple images into a list"""
+
     @classmethod
     def INPUT_TYPES(s):
         return {

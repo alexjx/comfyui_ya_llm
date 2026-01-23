@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a ComfyUI custom node plugin that provides LLM integration capabilities. It supports both OpenAI-compatible APIs and Ollama for generating and editing prompts within ComfyUI workflows.
+This is a ComfyUI custom node plugin that provides LLM integration capabilities. It supports OpenAI-compatible APIs, Ollama, and local llama.cpp models for generating and editing prompts within ComfyUI workflows.
 
 ## Architecture
 
@@ -13,7 +13,11 @@ This is a ComfyUI custom node plugin that provides LLM integration capabilities.
 The plugin follows ComfyUI's custom node architecture:
 
 - **`__init__.py`**: Entry point that exports `NODE_CLASS_MAPPINGS`, `NODE_DISPLAY_NAME_MAPPINGS`, and `WEB_DIRECTORY`
-- **`chat.py`**: Contains all node class definitions and the main API endpoint
+- **`llm_openai.py`**: OpenAI-compatible API nodes
+- **`llm_ollama.py`**: Ollama API nodes
+- **`llm_llamacpp.py`**: Local llama.cpp inference nodes
+- **`text.py`**: Text utility nodes
+- **`segs_caption.py`**: Segment captioning nodes
 - **`web/js/yallm.js`**: Frontend extension for dynamic model loading in Ollama nodes and dynamic inputs for TextTemplate
 
 ### Custom Data Types
@@ -29,8 +33,10 @@ All nodes are registered under the category `"Yet Another LLM"` and include:
 
 1. **API-based nodes**: `LLMApiModelLoader`, `LLMChat` (OpenAI-compatible APIs)
 2. **Ollama nodes**: `OllamaGenerate`, `OllamaChat`, `OllamaChatDual`
-3. **Utility nodes**: `TextTemplate`, `TextExtract`, `TextRemove`
-4. **Image generation**: `GPTImageGeneratorChat`
+3. **LlamaCpp nodes**: `LlamaCppGenerate` (Local llama.cpp inference)
+4. **Utility nodes**: `TextTemplate`, `TextExtract`, `TextRemove`
+5. **Image generation**: `GPTImageGeneratorChat`, `TuZiImageGenerator`
+6. **Captioning**: `SEGSCaptioner`, `SEGSCaptionerV2`
 
 ### Key Implementation Details
 
@@ -48,6 +54,15 @@ All nodes are registered under the category `"Yet Another LLM"` and include:
 
 **Dynamic Inputs**: The TextTemplate node uses JavaScript in web/js/yallm.js to provide unlimited dynamic inputs. Users can connect as many inputs as needed, which auto-renumber sequentially (input1, input2, input3, etc.).
 
+**LlamaCpp Integration**: The `LlamaCppGenerate` node uses llama-cpp-python for local model inference. Key features:
+- **Model enumeration**: Auto-discovers GGUF models from `models/LLM/` directory via `folder_paths.get_filename_list("LLM")`
+- **Model caching**: Models are cached by (model_path, n_ctx, n_gpu_layers, clip_model_path) for reuse across runs
+- **GPU offloading**: Supports configurable GPU layer offloading via `n_gpu_layers` parameter (-1 = all layers)
+- **Vision support**: Qwen vision models (Qwen2.5-VL, Qwen3-VL) and Llava models (v1.5/v1.6) supported via separate mmproj (CLIP) files with auto-detection
+- **Memory management**: Optional model unloading via `unload_model` parameter (default: True)
+- **CUDA detection**: Runtime check for CUDA availability with graceful CPU fallback
+- **Streaming output**: Green-colored console streaming like Ollama nodes (llm_llamacpp.py:268-281)
+
 ## Development Commands
 
 ### Running in ComfyUI
@@ -59,7 +74,10 @@ This is a ComfyUI custom node. To use it:
 cd /path/to/ComfyUI/custom_nodes/comfyui_ya_llm
 
 # Install dependencies
-pip install -r requirements.txt
+uv pip install -r requirements.txt
+
+# Install llama-cpp-python with CUDA support (for LlamaCpp nodes)
+uv pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
 
 # ComfyUI will automatically load this node on startup
 ```
@@ -72,12 +90,15 @@ No formal test suite exists. Testing is done through ComfyUI's node graph interf
 
 - `openai>=1.40.1`: OpenAI API client
 - `ollama`: Ollama Python client
+- `llama-cpp-python`: llama.cpp Python bindings for local inference (optional, requires separate installation)
 - `pillow`: Image processing
 - `numpy`: Array operations
 - `jinja2`: Template rendering
 - `tenacity`: Retry logic for image downloads
+- `requests`: HTTP requests
 - `torch`: PyTorch (provided by ComfyUI)
 - `aiohttp`: Async HTTP server (provided by ComfyUI)
+- `folder_paths`: ComfyUI model path management (provided by ComfyUI)
 
 ## API Endpoints
 
@@ -89,8 +110,9 @@ No formal test suite exists. Testing is done through ComfyUI's node graph interf
 
 1. Create a new class with `INPUT_TYPES`, `RETURN_TYPES`, `FUNCTION`, and `CATEGORY` class attributes
 2. Implement the function specified in `FUNCTION`
-3. Add to `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS` in the appropriate file (llm_openai.py, llm_ollama.py, or text.py)
-4. If the node requires frontend interaction, extend web/js/yallm.js
+3. Add to `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS` in the appropriate file (llm_openai.py, llm_ollama.py, llm_llamacpp.py, text.py, etc.)
+4. Import and merge mappings in `__init__.py`
+5. If the node requires frontend interaction, extend web/js/yallm.js
 
 ### Seed Handling
 
