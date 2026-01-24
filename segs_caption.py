@@ -672,6 +672,10 @@ class LlamacppSEGSCaptioner:
                     get_gguf_models(),
                     {"tooltip": "GGUF model from models/LLM directory"},
                 ),
+                "projector": (
+                    [f for f in get_mmproj_models() if f != "(none)"],
+                    {"tooltip": "Vision projection model for multimodal models (mmproj*.gguf) - REQUIRED for image captioning"},
+                ),
                 "seed": (
                     "INT",
                     {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF, "step": 1},
@@ -717,10 +721,6 @@ class LlamacppSEGSCaptioner:
             },
             "optional": {
                 "fallback_image_opt": ("IMAGE",),
-                "clip_model": (
-                    get_mmproj_models(),
-                    {"tooltip": "CLIP projection model for vision (mmproj*.gguf)"},
-                ),
             },
         }
 
@@ -843,6 +843,7 @@ class LlamacppSEGSCaptioner:
         segs,
         prompt_template,
         model,
+        projector,
         seed,
         temperature,
         max_tokens,
@@ -850,7 +851,6 @@ class LlamacppSEGSCaptioner:
         n_gpu_layers,
         unload_model,
         fallback_image_opt=None,
-        clip_model="(none)",
     ):
         # Extract SEGS structure
         shape, seg_list = segs
@@ -867,15 +867,12 @@ class LlamacppSEGSCaptioner:
         if not model_path or not os.path.exists(model_path):
             return (f"[LAB]\n(error: model file not found: {model})",)
 
-        # Resolve clip model path (if provided)
-        clip_model_path = ""
-        if clip_model and clip_model != "(none)":
-            clip_model_path = folder_paths.get_full_path("LLM", clip_model)
-            if not clip_model_path or not os.path.exists(clip_model_path):
-                logging.warning(
-                    f"LlamacppSEGSCaptioner: CLIP model not found: {clip_model}"
-                )
-                clip_model_path = ""
+        # Resolve projector path (required for image captioning)
+        projector_path = folder_paths.get_full_path("LLM", projector)
+        if not projector_path or not os.path.exists(projector_path):
+            return (
+                f"[LAB]\n(error: Projector model not found: {projector}. Vision projector required for image captioning.)",
+            )
 
         # Scale segs to match fallback image if provided (like SEGSPreview does)
         if fallback_image_opt is not None:
@@ -890,11 +887,11 @@ class LlamacppSEGSCaptioner:
 
         # Load model once for all segments
         clear_memory_for_llamacpp()
-        cache_key = f"{model_path}_{n_ctx}_{n_gpu_layers}_{clip_model_path}"
+        cache_key = f"{model_path}_{n_ctx}_{n_gpu_layers}_{projector_path}"
 
         try:
             llm_model = get_or_load_model(
-                model_path, n_ctx, n_gpu_layers, clip_model_path, clip_model_path != ""
+                model_path, n_ctx, n_gpu_layers, projector_path, has_images=True
             )
         except Exception as e:
             logging.error(f"LlamacppSEGSCaptioner: Failed to load model: {e}")
@@ -1038,6 +1035,10 @@ class LlamacppSEGSCaptionerV2:
                     get_gguf_models(),
                     {"tooltip": "GGUF model from models/LLM directory"},
                 ),
+                "projector": (
+                    [f for f in get_mmproj_models() if f != "(none)"],
+                    {"tooltip": "Vision projection model for multimodal models (mmproj*.gguf) - REQUIRED for image captioning"},
+                ),
                 "seed": (
                     "INT",
                     {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF, "step": 1},
@@ -1083,10 +1084,6 @@ class LlamacppSEGSCaptionerV2:
             },
             "optional": {
                 "fallback_image_opt": ("IMAGE",),
-                "clip_model": (
-                    get_mmproj_models(),
-                    {"tooltip": "CLIP projection model for vision (mmproj*.gguf)"},
-                ),
             },
         }
 
@@ -1209,6 +1206,7 @@ class LlamacppSEGSCaptionerV2:
         segs,
         prompt_template,
         model,
+        projector,
         seed,
         temperature,
         max_tokens,
@@ -1216,7 +1214,6 @@ class LlamacppSEGSCaptionerV2:
         n_gpu_layers,
         unload_model,
         fallback_image_opt=None,
-        clip_model="(none)",
     ):
         shape, seg_list = segs
 
@@ -1232,15 +1229,14 @@ class LlamacppSEGSCaptionerV2:
         if not model_path or not os.path.exists(model_path):
             return ([f"(error: model file not found: {model})"],)
 
-        # Resolve clip model path (if provided)
-        clip_model_path = ""
-        if clip_model and clip_model != "(none)":
-            clip_model_path = folder_paths.get_full_path("LLM", clip_model)
-            if not clip_model_path or not os.path.exists(clip_model_path):
-                logging.warning(
-                    f"LlamacppSEGSCaptionerV2: CLIP model not found: {clip_model}"
-                )
-                clip_model_path = ""
+        # Resolve projector path (required for image captioning)
+        projector_path = folder_paths.get_full_path("LLM", projector)
+        if not projector_path or not os.path.exists(projector_path):
+            return (
+                [
+                    f"(error: Projector model not found: {projector}. Vision projector required for image captioning.)"
+                ],
+            )
 
         if fallback_image_opt is not None:
             segs = self.segs_scale_match(segs, fallback_image_opt.shape)
@@ -1254,11 +1250,11 @@ class LlamacppSEGSCaptionerV2:
 
         # Load model once for all segments
         clear_memory_for_llamacpp()
-        cache_key = f"{model_path}_{n_ctx}_{n_gpu_layers}_{clip_model_path}"
+        cache_key = f"{model_path}_{n_ctx}_{n_gpu_layers}_{projector_path}"
 
         try:
             llm_model = get_or_load_model(
-                model_path, n_ctx, n_gpu_layers, clip_model_path, clip_model_path != ""
+                model_path, n_ctx, n_gpu_layers, projector_path, has_images=True
             )
         except Exception as e:
             logging.error(f"LlamacppSEGSCaptionerV2: Failed to load model: {e}")

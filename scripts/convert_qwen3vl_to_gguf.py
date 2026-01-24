@@ -303,7 +303,7 @@ Examples:
     print("=" * 60)
     print("  1. Restart ComfyUI")
     print(f"  2. Select model: {args.name}-Q8_0.gguf")
-    print(f"  3. Select clip_model: mmproj-{args.name}-F16.gguf")
+    print(f"  3. Select projector: mmproj-{args.name}-F16.gguf")
     print("  4. Connect images and prompt")
     print("  5. Set n_gpu_layers=-1 for GPU acceleration")
     print()

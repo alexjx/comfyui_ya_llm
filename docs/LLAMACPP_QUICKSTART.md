@@ -84,7 +84,7 @@ wget https://huggingface.co/cjpais/llava-1.6-mistral-7b-gguf/resolve/main/mmproj
 1. Add node: `LlamaCpp Generate`
 2. Configure:
    - **model**: Select vision model (e.g., llava-1.6-mistral-7b.Q4_K_M.gguf)
-   - **clip_model**: Select mmproj file (e.g., mmproj-model-f16.gguf)
+   - **projector**: Select mmproj file (e.g., mmproj-model-f16.gguf)
    - **images**: Connect image input
    - **prompt**: "Describe this image in detail"
 3. Run!
@@ -94,7 +94,7 @@ wget https://huggingface.co/cjpais/llava-1.6-mistral-7b-gguf/resolve/main/mmproj
 ```
 [Load Image] → images → [LlamaCppGenerate] → response → [Display Text]
                          ↓ model: llava-1.6-mistral-7b.Q4_K_M.gguf
-                         ↓ clip_model: mmproj-model-f16.gguf
+                         ↓ projector: mmproj-model-f16.gguf
                          ↓ prompt: "What do you see in this image?"
 ```
 
@@ -123,7 +123,7 @@ wget https://huggingface.co/cjpais/llava-1.6-mistral-7b-gguf/resolve/main/mmproj
 | Parameter | Description |
 |-----------|-------------|
 | `images` | Connect images for vision models |
-| `clip_model` | Select mmproj file for vision support |
+| `projector` | Select mmproj file for vision support |
 
 ## 5. Performance Tuning
 
@@ -180,7 +180,7 @@ uv pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llam
 **Problem:** Images provided but no output or errors.
 
 **Solutions:**
-- Ensure `clip_model` is selected
+- Ensure `projector` is selected
 - Verify both model and mmproj are from same model family
 - Check that model supports vision (Llava, Bakllava, etc.)
 

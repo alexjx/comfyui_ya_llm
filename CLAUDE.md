@@ -56,7 +56,7 @@ All nodes are registered under the category `"Yet Another LLM"` and include:
 
 **LlamaCpp Integration**: The `LlamaCppGenerate` node uses llama-cpp-python for local model inference. Key features:
 - **Model enumeration**: Auto-discovers GGUF models from `models/LLM/` directory via `folder_paths.get_filename_list("LLM")`
-- **Model caching**: Models are cached by (model_path, n_ctx, n_gpu_layers, clip_model_path) for reuse across runs
+- **Model caching**: Models are cached by (model_path, n_ctx, n_gpu_layers, projector_path) for reuse across runs
 - **GPU offloading**: Supports configurable GPU layer offloading via `n_gpu_layers` parameter (-1 = all layers)
 - **Vision support**: Qwen vision models (Qwen2.5-VL, Qwen3-VL) and Llava models (v1.5/v1.6) supported via separate mmproj (CLIP) files with auto-detection
 - **Memory management**: Optional model unloading via `unload_model` parameter (default: True)

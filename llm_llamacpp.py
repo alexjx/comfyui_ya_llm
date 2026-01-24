@@ -121,9 +121,9 @@ def convert_image_to_data_url(img_tensor):
     return f"data:image/png;base64,{img_base64}"
 
 
-def get_or_load_model(model_path, n_ctx, n_gpu_layers, clip_model_path, has_images):
+def get_or_load_model(model_path, n_ctx, n_gpu_layers, projector_path, has_images):
     """Get model from cache or load it"""
-    cache_key = f"{model_path}_{n_ctx}_{n_gpu_layers}_{clip_model_path}"
+    cache_key = f"{model_path}_{n_ctx}_{n_gpu_layers}_{projector_path}"
 
     if cache_key in _model_cache:
         logger.info(f"Reusing cached model: {os.path.basename(model_path)}")
@@ -131,8 +131,8 @@ def get_or_load_model(model_path, n_ctx, n_gpu_layers, clip_model_path, has_imag
 
     # Convert to absolute path if needed
     model_path = os.path.abspath(model_path)
-    if clip_model_path:
-        clip_model_path = os.path.abspath(clip_model_path)
+    if projector_path:
+        projector_path = os.path.abspath(projector_path)
 
     logger.info(f"Loading model: {os.path.basename(model_path)}")
 
@@ -153,9 +153,9 @@ def get_or_load_model(model_path, n_ctx, n_gpu_layers, clip_model_path, has_imag
     }
 
     # Vision support
-    if clip_model_path:
-        if not os.path.exists(clip_model_path):
-            logger.warning(f"CLIP model not found: {clip_model_path}")
+    if projector_path:
+        if not os.path.exists(projector_path):
+            logger.warning(f"Projector model not found: {projector_path}")
         else:
             try:
                 # Force reload to avoid stale cache
@@ -165,21 +165,21 @@ def get_or_load_model(model_path, n_ctx, n_gpu_layers, clip_model_path, has_imag
 
                 # Auto-detect model type
                 model_name = os.path.basename(model_path).lower()
-                clip_name = os.path.basename(clip_model_path).lower()
+                projector_name = os.path.basename(projector_path).lower()
 
-                if "qwen" in model_name or "qwen" in clip_name:
+                if "qwen" in model_name or "qwen" in projector_name:
                     chat_handler = Qwen25VLChatHandler(
-                        clip_model_path=clip_model_path, verbose=False
+                        clip_model_path=projector_path, verbose=False
                     )
                     logger.info("Using Qwen vision chat handler")
-                elif "1.6" in clip_name:
+                elif "1.6" in projector_name:
                     chat_handler = Llava16ChatHandler(
-                        clip_model_path=clip_model_path, verbose=False
+                        clip_model_path=projector_path, verbose=False
                     )
                     logger.info("Using Llava 1.6 chat handler")
                 else:
                     chat_handler = Llava15ChatHandler(
-                        clip_model_path=clip_model_path, verbose=False
+                        clip_model_path=projector_path, verbose=False
                     )
                     logger.info("Using Llava 1.5 chat handler")
 
@@ -189,7 +189,7 @@ def get_or_load_model(model_path, n_ctx, n_gpu_layers, clip_model_path, has_imag
                 logger.error(f"Failed to load vision model handler: {e}")
                 logger.error(f"Traceback: {traceback.format_exc()}")
     elif has_images:
-        logger.warning("Images provided but no clip_model specified. Vision disabled.")
+        logger.warning("Images provided but no projector specified. Vision disabled.")
 
     # Load model
     try:
@@ -298,12 +298,12 @@ class LlamacppGenerate:
                     "IMAGE",
                     {
                         "forceInput": True,
-                        "tooltip": "Images for vision models (requires clip_model)",
+                        "tooltip": "Images for vision models (requires projector)",
                     },
                 ),
-                "clip_model": (
+                "projector": (
                     get_mmproj_models(),
-                    {"tooltip": "CLIP projection model for vision (mmproj*.gguf)"},
+                    {"tooltip": "Vision projection model for multimodal models (mmproj*.gguf)"},
                 ),
             },
         }
@@ -324,7 +324,7 @@ class LlamacppGenerate:
         n_gpu_layers,
         unload_model,
         images=None,
-        clip_model="(none)",
+        projector="(none)",
     ):
         # 1. Validate model
         if model == "(no models found)":
@@ -336,22 +336,22 @@ class LlamacppGenerate:
         if not model_path or not os.path.exists(model_path):
             return (f"Error: Model file not found: {model}",)
 
-        # 2. Resolve clip model path (if provided)
-        clip_model_path = ""
-        if clip_model and clip_model != "(none)":
-            clip_model_path = folder_paths.get_full_path("LLM", clip_model)
-            if not clip_model_path or not os.path.exists(clip_model_path):
-                logger.warning(f"CLIP model not found: {clip_model}")
-                clip_model_path = ""
+        # 2. Resolve projector path (if provided)
+        projector_path = ""
+        if projector and projector != "(none)":
+            projector_path = folder_paths.get_full_path("LLM", projector)
+            if not projector_path or not os.path.exists(projector_path):
+                logger.warning(f"Projector model not found: {projector}")
+                projector_path = ""
 
         # 3. Clear ComfyUI memory
         clear_memory_for_llamacpp()
 
         # 4. Get or load model from cache
-        cache_key = f"{model_path}_{n_ctx}_{n_gpu_layers}_{clip_model_path}"
+        cache_key = f"{model_path}_{n_ctx}_{n_gpu_layers}_{projector_path}"
         try:
             llm_model = get_or_load_model(
-                model_path, n_ctx, n_gpu_layers, clip_model_path, images is not None
+                model_path, n_ctx, n_gpu_layers, projector_path, images is not None
             )
         except Exception as e:
             return (f"Error loading model: {str(e)}",)
