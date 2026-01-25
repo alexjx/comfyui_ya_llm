@@ -155,39 +155,44 @@ def get_or_load_model(model_path, n_ctx, n_gpu_layers, projector_path, has_image
     # Vision support
     if projector_path:
         if not os.path.exists(projector_path):
-            logger.warning(f"Projector model not found: {projector_path}")
-        else:
-            try:
-                # Force reload to avoid stale cache
-                import llama_cpp.llama_chat_format
+            error_msg = f"Projector model not found: {projector_path}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
-                importlib.reload(llama_cpp.llama_chat_format)
+        try:
+            # Force reload to avoid stale cache
+            import llama_cpp.llama_chat_format
 
-                # Auto-detect model type
-                model_name = os.path.basename(model_path).lower()
-                projector_name = os.path.basename(projector_path).lower()
+            importlib.reload(llama_cpp.llama_chat_format)
 
-                if "qwen" in model_name or "qwen" in projector_name:
-                    chat_handler = Qwen25VLChatHandler(
-                        clip_model_path=projector_path, verbose=False
-                    )
-                    logger.info("Using Qwen vision chat handler")
-                elif "1.6" in projector_name:
-                    chat_handler = Llava16ChatHandler(
-                        clip_model_path=projector_path, verbose=False
-                    )
-                    logger.info("Using Llava 1.6 chat handler")
-                else:
-                    chat_handler = Llava15ChatHandler(
-                        clip_model_path=projector_path, verbose=False
-                    )
-                    logger.info("Using Llava 1.5 chat handler")
+            # Auto-detect model type
+            model_name = os.path.basename(model_path).lower()
+            projector_name = os.path.basename(projector_path).lower()
 
-                kwargs["chat_handler"] = chat_handler
-                kwargs["logits_all"] = True
-            except Exception as e:
-                logger.error(f"Failed to load vision model handler: {e}")
-                logger.error(f"Traceback: {traceback.format_exc()}")
+            if "qwen" in model_name or "qwen" in projector_name:
+                chat_handler = Qwen25VLChatHandler(
+                    clip_model_path=projector_path, verbose=False
+                )
+                logger.info("Using Qwen vision chat handler")
+            elif "1.6" in projector_name:
+                chat_handler = Llava16ChatHandler(
+                    clip_model_path=projector_path, verbose=False
+                )
+                logger.info("Using Llava 1.6 chat handler")
+            else:
+                chat_handler = Llava15ChatHandler(
+                    clip_model_path=projector_path, verbose=False
+                )
+                logger.info("Using Llava 1.5 chat handler")
+
+            kwargs["chat_handler"] = chat_handler
+            kwargs["logits_all"] = True
+        except Exception as e:
+            error_msg = f"Failed to load vision model handler: {e}"
+            logger.error(error_msg)
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Projector was explicitly specified - fail instead of silently continuing
+            raise RuntimeError(error_msg)
     elif has_images:
         logger.warning("Images provided but no projector specified. Vision disabled.")
 
@@ -339,10 +344,14 @@ class LlamacppGenerate:
         # 2. Resolve projector path (if provided)
         projector_path = ""
         if projector and projector != "(none)":
+            logger.info(f"Looking for projector: {projector}")
             projector_path = folder_paths.get_full_path("LLM", projector)
+            logger.info(f"Resolved projector path: {projector_path}")
             if not projector_path or not os.path.exists(projector_path):
-                logger.warning(f"Projector model not found: {projector}")
+                logger.error(f"Projector model not found: {projector} (resolved to: {projector_path})")
                 projector_path = ""
+            else:
+                logger.info(f"Found projector: {projector_path}")
 
         # 3. Clear ComfyUI memory
         clear_memory_for_llamacpp()
