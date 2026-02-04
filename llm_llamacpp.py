@@ -348,10 +348,10 @@ class LlamacppGenerate:
             projector_path = folder_paths.get_full_path("LLM", projector)
             logger.info(f"Resolved projector path: {projector_path}")
             if not projector_path or not os.path.exists(projector_path):
-                logger.error(f"Projector model not found: {projector} (resolved to: {projector_path})")
-                projector_path = ""
-            else:
-                logger.info(f"Found projector: {projector_path}")
+                error_msg = f"Projector model not found: {projector} (resolved to: {projector_path})"
+                logger.error(error_msg)
+                return (f"Error: {error_msg}",)
+            logger.info(f"Found projector: {projector_path}")
 
         # 3. Clear ComfyUI memory
         clear_memory_for_llamacpp()
@@ -366,16 +366,26 @@ class LlamacppGenerate:
             return (f"Error loading model: {str(e)}",)
 
         # 5. Build messages
-        if images is not None:
+        if images is not None and len(images) > 0:
             content = [{"type": "text", "text": prompt}]
+            valid_images = 0
             # Process all images in batch
             for img in images:
+                # Skip images with zero dimensions
+                if img.shape[0] == 0 or img.shape[1] == 0:
+                    continue
                 img_data_url = convert_image_to_data_url(img)
                 content.append(
                     {"type": "image_url", "image_url": {"url": img_data_url}}
                 )
-            messages = [{"role": "user", "content": content}]
-            logger.info(f"Processing {len(images)} image(s) with prompt")
+                valid_images += 1
+
+            if valid_images > 0:
+                messages = [{"role": "user", "content": content}]
+                logger.info(f"Processing {valid_images} image(s) with prompt")
+            else:
+                # All images were invalid, fall back to text-only
+                messages = [{"role": "user", "content": prompt}]
         else:
             messages = [{"role": "user", "content": prompt}]
 

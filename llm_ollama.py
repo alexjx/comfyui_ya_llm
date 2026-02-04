@@ -180,15 +180,21 @@ class OllamaGenerate:
 
         # Process images if provided
         images_b64 = None
-        if images is not None:
+        if images is not None and len(images) > 0:
             images_b64 = []
-            for batch_number, image in enumerate(images):
+            for image in images:
+                # Skip images with zero dimensions
+                if image.shape[0] == 0 or image.shape[1] == 0:
+                    continue
                 i = 255.0 * image.cpu().numpy()
                 img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
                 buffered = BytesIO()
                 img.save(buffered, format="PNG")
                 img_bytes = base64.b64encode(buffered.getvalue())
                 images_b64.append(str(img_bytes, "utf-8"))
+            # If all images were invalid, treat as no images
+            if not images_b64:
+                images_b64 = None
 
         # Clear memory before invoking Ollama
         clear_memory_for_ollama()
