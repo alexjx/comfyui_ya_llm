@@ -4,6 +4,67 @@ from typing import Optional, Tuple
 from datetime import datetime
 
 
+def _extract_char_index(error_message: str) -> Optional[int]:
+    match = re.search(r"\bat\s+(\d+)\b", error_message)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _line_and_column_from_index(text: str, index: int) -> Tuple[int, int]:
+    safe_index = min(max(index, 0), len(text))
+    line_no = text.count("\n", 0, safe_index) + 1
+    line_start = text.rfind("\n", 0, safe_index) + 1
+    column_no = safe_index - line_start + 1
+    return (line_no, column_no)
+
+
+def _line_content(text: str, line_no: int) -> str:
+    lines = text.splitlines()
+    if 1 <= line_no <= len(lines):
+        return lines[line_no - 1]
+    return ""
+
+
+def _format_template_syntax_error(
+    error: jinja2.exceptions.TemplateSyntaxError,
+    source_text: str,
+    inputs: dict,
+    iteration: int,
+) -> str:
+    message = str(error)
+    char_index = getattr(error, "pos", None)
+    if char_index is None:
+        char_index = _extract_char_index(message)
+
+    line_no = getattr(error, "lineno", None)
+    column_no = None
+    if char_index is not None:
+        line_no, column_no = _line_and_column_from_index(source_text, char_index)
+
+    context_line = _line_content(source_text, line_no) if line_no else ""
+    pointer_line = ""
+    if context_line and column_no is not None and column_no > 0:
+        pointer_line = " " * (column_no - 1) + "^"
+
+    available_inputs = ", ".join(sorted(inputs.keys())) if inputs else "(none)"
+
+    details = [f"Template syntax error (iteration {iteration + 1}): {message}"]
+    if line_no:
+        details.append(f"Line {line_no}")
+    if column_no:
+        details.append(f"Column {column_no}")
+    if char_index is not None:
+        details.append(f"Character index {char_index}")
+    if context_line:
+        details.append("Context:")
+        details.append(context_line)
+        if pointer_line:
+            details.append(pointer_line)
+    details.append(f"Available variables: {available_inputs}")
+    return "\n".join(details)
+
+
 class TextTemplate:
     @classmethod
     def INPUT_TYPES(s):
@@ -52,7 +113,12 @@ class TextTemplate:
             # Render the current text
             template_env = jinja2.Environment(autoescape=False)
             template_env.filters["boolean"] = bool
-            template_str = template_env.from_string(current_text)
+            try:
+                template_str = template_env.from_string(current_text)
+            except jinja2.exceptions.TemplateSyntaxError as e:
+                raise ValueError(
+                    _format_template_syntax_error(e, current_text, inputs, iteration)
+                ) from e
 
             # Set all inputs as globals (includes both original and renamed names)
             for key, value in inputs.items():
@@ -69,7 +135,11 @@ class TextTemplate:
                 raise ValueError(
                     f"Template rendering failed: {str(e)}. "
                     f"Available variables: {', '.join(sorted(inputs.keys()))}"
-                )
+                ) from e
+            except jinja2.exceptions.TemplateSyntaxError as e:
+                raise ValueError(
+                    _format_template_syntax_error(e, current_text, inputs, iteration)
+                ) from e
 
         # Check if we still have unresolved template tags after max iterations
         remaining_matches = re.findall(r"\{[{%#][^}]+[}%#]\}", current_text)
