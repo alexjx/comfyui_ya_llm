@@ -26,6 +26,41 @@ def _line_content(text: str, line_no: int) -> str:
     return ""
 
 
+def _try_decode_json_escapes(text: str) -> str:
+    """
+    Reverse JSON encoding that may have been applied to template strings.
+
+    When workflow data is serialized through multiple layers (e.g., ComfyUI's
+    internal serialization + JSON), the template string can become double-encoded.
+    This manifests as '\\u0027' for single quotes and '\\\"' for double quotes
+    appearing in the string, which breaks Jinja2 template parsing.
+
+    This function reverses the JSON encoding by replacing known JSON escape
+    sequences with their actual characters.
+
+    Returns the decoded string if any JSON escapes were found and reversed,
+    otherwise returns the original string unchanged.
+    """
+    # Check if the string contains JSON escape patterns
+    has_u0027 = "\\u0027" in text
+    has_escaped_quote = '\\"' in text
+
+    if not has_u0027 and not has_escaped_quote:
+        return text
+
+    # Replace JSON escape sequences with their actual characters
+    # \u0027 is the JSON escape for single quote (')
+    # \" is the JSON escape for double quote (")
+    # We also handle other common JSON escapes that might appear
+    result = text
+    if has_u0027:
+        result = result.replace("\\u0027", "'")
+    if has_escaped_quote:
+        result = result.replace('\\"', '"')
+
+    return result
+
+
 def _format_template_syntax_error(
     error: jinja2.exceptions.TemplateSyntaxError,
     source_text: str,
@@ -99,9 +134,12 @@ class TextTemplate:
 
         # Recursive template rendering with limit
         max_iterations = 10
-        current_text = template
+        current_text = _try_decode_json_escapes(template)
 
         for iteration in range(max_iterations):
+            # Decode any JSON escapes that may have been introduced (e.g., via ComfyUI serialization)
+            current_text = _try_decode_json_escapes(current_text)
+
             # Check if there are any template tags remaining
             # Match {{...}}, {%...%}, and {#...#} (variables, control structures, comments)
             template_pattern = r"\{[{%#][^}]+[}%#]\}"
