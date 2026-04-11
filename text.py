@@ -43,19 +43,22 @@ def _try_decode_json_escapes(text: str) -> str:
     """
     # Check if the string contains JSON escape patterns
     has_u0027 = "\\u0027" in text
-    has_escaped_quote = '\\"' in text
+    has_escaped_single_quote = "\\'" in text
+    has_escaped_double_quote = '\\"' in text
 
-    if not has_u0027 and not has_escaped_quote:
+    if not has_u0027 and not has_escaped_single_quote and not has_escaped_double_quote:
         return text
 
-    # Replace JSON escape sequences with their actual characters
+    # Replace escape sequences with their actual characters
     # \u0027 is the JSON escape for single quote (')
+    # \' is a common escape for single quote (e.g., Python repr, some serializers)
     # \" is the JSON escape for double quote (")
-    # We also handle other common JSON escapes that might appear
     result = text
     if has_u0027:
         result = result.replace("\\u0027", "'")
-    if has_escaped_quote:
+    if has_escaped_single_quote:
+        result = result.replace("\\'", "'")
+    if has_escaped_double_quote:
         result = result.replace('\\"', '"')
 
     return result
