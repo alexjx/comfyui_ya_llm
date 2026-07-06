@@ -23,6 +23,38 @@ from .llm_llamacpp import (
 from .llm_ollama import clear_memory_for_ollama, wait_for_model_unload
 
 
+THINKING_OPTIONS = ["ON", "OFF", "HIGH", "MEDIUM", "LOW", "NONE"]
+
+
+def map_thinking(thinking):
+    if thinking == "OFF":
+        return False
+    if thinking == "ON":
+        return True
+    if thinking == "HIGH":
+        return "high"
+    if thinking == "MEDIUM":
+        return "medium"
+    if thinking == "LOW":
+        return "low"
+    if thinking == "NONE":
+        return None
+    return None
+
+
+def strip_thinking(text):
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+
+def format_caption(caption, reasoning, keep_reason):
+    if keep_reason:
+        if reasoning:
+            caption = f"<think>{reasoning}</think>\n{caption}"
+    else:
+        caption = strip_thinking(caption)
+    return caption.strip().replace("\n", " ").replace("\r", " ")
+
+
 class SEGSCaptioner:
     @classmethod
     def INPUT_TYPES(s):
@@ -58,6 +90,8 @@ class SEGSCaptioner:
                     "INT",
                     {"default": 0, "min": -1, "max": 3600, "step": 1},
                 ),
+                "thinking": (THINKING_OPTIONS, {"default": "NONE"}),
+                "keep_reason": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "fallback_image_opt": ("IMAGE",),
@@ -189,6 +223,8 @@ class SEGSCaptioner:
         num_ctx,
         num_predict,
         keep_alive,
+        thinking,
+        keep_reason,
         fallback_image_opt=None,
     ):
         # Extract SEGS structure
@@ -206,6 +242,7 @@ class SEGSCaptioner:
         # Initialize Ollama client
         client = ollama.Client(host=url)
         model = model.strip()
+        thinking = map_thinking(thinking)
 
         # Options for Ollama
         options = {
@@ -307,11 +344,17 @@ class SEGSCaptioner:
                     images=[img_b64],
                     options=options,
                     keep_alive=f"{effective_keep_alive}s",
+                    think=thinking,  # type: ignore
                     stream=True,
                 )
 
                 caption = ""
+                reasoning = ""
                 for chunk in stream:
+                    if "thinking" in chunk:
+                        think_text = chunk["thinking"]
+                        print(f"\033[33m{think_text}\033[0m", end="", flush=True)
+                        reasoning += think_text
                     if "response" in chunk:
                         response_text = chunk["response"]
                         print(f"\033[32m{response_text}\033[0m", end="", flush=True)
@@ -326,7 +369,7 @@ class SEGSCaptioner:
                         )
                         break
 
-                caption = caption.strip().replace("\n", " ").replace("\r", " ")
+                caption = format_caption(caption, reasoning, keep_reason)
 
                 captions.append(f"[{label}] {caption}")
 
@@ -383,6 +426,8 @@ class SEGSCaptionerV2:
                     "INT",
                     {"default": 0, "min": -1, "max": 3600, "step": 1},
                 ),
+                "thinking": (THINKING_OPTIONS, {"default": "NONE"}),
+                "keep_reason": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "fallback_image_opt": ("IMAGE",),
@@ -514,6 +559,8 @@ class SEGSCaptionerV2:
         num_ctx,
         num_predict,
         keep_alive,
+        thinking,
+        keep_reason,
         fallback_image_opt=None,
     ):
         shape, seg_list = segs
@@ -528,6 +575,7 @@ class SEGSCaptionerV2:
 
         client = ollama.Client(host=url)
         model = model.strip()
+        thinking = map_thinking(thinking)
 
         options = {
             "temperature": temperature,
@@ -618,11 +666,17 @@ class SEGSCaptionerV2:
                     images=[img_b64],
                     options=options,
                     keep_alive=f"{effective_keep_alive}s",
+                    think=thinking,  # type: ignore
                     stream=True,
                 )
 
                 caption = ""
+                reasoning = ""
                 for chunk in stream:
+                    if "thinking" in chunk:
+                        think_text = chunk["thinking"]
+                        print(f"\033[33m{think_text}\033[0m", end="", flush=True)
+                        reasoning += think_text
                     if "response" in chunk:
                         response_text = chunk["response"]
                         print(f"\033[32m{response_text}\033[0m", end="", flush=True)
@@ -637,7 +691,7 @@ class SEGSCaptionerV2:
                         )
                         break
 
-                caption = caption.strip().replace("\n", " ").replace("\r", " ")
+                caption = format_caption(caption, reasoning, keep_reason)
                 captions.append(caption)
 
             except Exception as e:

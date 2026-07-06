@@ -311,6 +311,8 @@ Automatically caption segmented regions using Ollama vision models.
 - `num_ctx` (INT, required): Context window size (default: 2048)
 - `num_predict` (INT, required): Max tokens per caption (default: 500)
 - `keep_alive` (INT, required): Keep model in memory (seconds)
+- `thinking` (STRING, required): Thinking mode (ON, OFF, HIGH, MEDIUM, LOW, NONE)
+- `keep_reason` (BOOLEAN, required): Whether to keep thinking tags in output
 - `fallback_image_opt` (IMAGE, optional): Fallback image for cropping when SEGS lacks cropped images
 
 **Outputs:**
