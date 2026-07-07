@@ -1,5 +1,6 @@
 import base64
 import io
+import json
 import logging
 import re
 from io import BytesIO
@@ -615,6 +616,34 @@ class TuZiImageGenerator:
         image_tensor = torch.from_numpy(image)[None,]
         return image_tensor
 
+    def extract_non_image_response(self, response_data):
+        """Keep raw response fields except image payload fields."""
+        if not isinstance(response_data, dict):
+            return response_data
+
+        non_image = {
+            key: value for key, value in response_data.items() if key != "data"
+        }
+
+        data = response_data.get("data")
+        if isinstance(data, list):
+            items = []
+            for item in data:
+                if isinstance(item, dict):
+                    filtered = {
+                        key: value
+                        for key, value in item.items()
+                        if key not in {"url", "b64_json"}
+                    }
+                    if filtered:
+                        items.append(filtered)
+                else:
+                    items.append(item)
+            if items:
+                non_image["data"] = items
+
+        return non_image
+
     def generate_image(
         self,
         prompt,
@@ -720,6 +749,14 @@ class TuZiImageGenerator:
             response_data = response.json()
 
             logger.info("Response received successfully")
+            raw_non_image = self.extract_non_image_response(response_data)
+            if raw_non_image:
+                logger.info(
+                    "Raw non-image response: %s",
+                    json.dumps(raw_non_image, ensure_ascii=False, indent=2),
+                )
+            else:
+                logger.info("Raw non-image response: none")
 
             # Parse response to match OpenAI format
             class ImageData:
