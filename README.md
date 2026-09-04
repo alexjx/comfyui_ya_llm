@@ -110,7 +110,7 @@ Generate text with local Ollama models, supporting vision and thinking modes.
 - `model` (dropdown, required): Model name (dynamically loaded from Ollama)
 - `seed` (INT, required): Random seed
 - `temperature` (FLOAT, required): Sampling temperature (0-2, default: 0.8)
-- `num_ctx` (INT, required): Context window size (1-8192, default: 2048)
+- `num_ctx` (INT, required): Context window size (1-262144, default: 2048)
 - `num_predict` (INT, required): Max tokens to predict (-1 for unlimited, default: -1)
 - `keep_alive` (INT, required): Keep model in memory (seconds, -1 for indefinite)
 - `thinking` (STRING, required): Thinking mode (ON, OFF, HIGH, MEDIUM, LOW, NONE)

@@ -116,7 +116,7 @@ class OllamaGenerate:
                 ),
                 "num_ctx": (
                     "INT",
-                    {"default": 2048, "min": 1, "max": 8192, "step": 1},
+                    {"default": 2048, "min": 1, "max": 262144, "step": 1},
                 ),
                 "num_predict": (
                     "INT",
