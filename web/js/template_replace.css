@@ -1,0 +1,105 @@
+.yallm-template-replace {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  color: var(--input-text, #ddd);
+  font: 13px/1.4 system-ui, sans-serif;
+}
+
+.yallm-template-replace [hidden] {
+  display: none !important;
+}
+
+.yallm-template-replace button,
+.yallm-template-replace textarea {
+  box-sizing: border-box;
+  color: inherit;
+  font: inherit;
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 5px;
+}
+
+.yallm-template-replace button {
+  min-height: 32px;
+  padding: 5px 10px;
+  background: var(--comfy-menu-bg, #171718);
+  cursor: pointer;
+}
+
+.yallm-template-replace button:hover:not(:disabled) {
+  border-color: var(--input-text, #ddd);
+}
+
+.yallm-template-replace :focus-visible {
+  outline: 2px solid var(--p-primary-color, #60a5fa);
+  outline-offset: 2px;
+}
+
+.yallm-template-replace button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.yallm-replace-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  pointer-events: auto;
+}
+
+.yallm-replace-panel {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: min(340px, calc(100% - 12px));
+  max-height: calc(100% - 12px);
+  box-sizing: border-box;
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 7px;
+  background: var(--comfy-menu-bg, #171718);
+  box-shadow: 0 4px 16px #0004;
+  pointer-events: auto;
+}
+
+.yallm-replace-header,
+.yallm-replace-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.yallm-replace-header {
+  justify-content: space-between;
+}
+
+.yallm-replace-panel label {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.yallm-replace-panel label span {
+  padding-top: 7px;
+}
+
+.yallm-replace-panel textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 6px 8px;
+  resize: vertical;
+  background: var(--bg-color, #202020);
+}
+
+.yallm-replace-apply {
+  border-color: var(--p-primary-color, #60a5fa) !important;
+}
+
+.yallm-replace-status {
+  min-height: 18px;
+}
