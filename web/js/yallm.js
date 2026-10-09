@@ -94,27 +94,108 @@ app.registerExtension({
 
     // Handle TextTemplate and ImageLister nodes - dynamic inputs
     if (["yaLLMTextTemplate", "yaImageLister"].includes(nodeType?.prototype.comfyClass)) {
-      const TypeSlot = { Input: 1, Output: 2 };
-      const TypeSlotEvent = { Connect: true, Disconnect: false };
       const PREFIX = nodeType.prototype.comfyClass === "yaImageLister" ? "image" : "input";
+      const inputNamePattern = new RegExp(`^${PREFIX}_\\d+$`);
+      const isDynamicInput = (slot) => !slot.widget && inputNamePattern.test(slot.name);
+      const configuringInputs = Symbol("yallmConfiguringInputs");
+      const updatingInputs = Symbol("yallmUpdatingInputs");
+      const restoredInputNames = Symbol("yallmRestoredInputNames");
+
+      const updateInputs = (node) => {
+        if (node[updatingInputs]) return;
+        node[updatingInputs] = true;
+        try {
+          const dynamicInputs = node.inputs.filter(isDynamicInput);
+          const lastInput = dynamicInputs[dynamicInputs.length - 1];
+          const emptyInput = lastInput && !node.isInputConnected(node.inputs.indexOf(lastInput)) ? lastInput : null;
+
+          // Remove only empty dynamic sockets, leaving one at the end.
+          for (let i = node.inputs.length - 1; i >= 0; i--) {
+            const slot = node.inputs[i];
+            if (isDynamicInput(slot) && !node.isInputConnected(i) && slot !== emptyInput) {
+              node.removeInput(i);
+            }
+          }
+
+          let count = 0;
+          for (let i = 0; i < node.inputs.length; i++) {
+            const slot = node.inputs[i];
+            if (!isDynamicInput(slot)) continue;
+            slot.name = `${PREFIX}_${++count}`;
+            const type = node.graph ? node.getInputDataType(i) : null;
+            if (type != null) slot.type = type;
+          }
+
+          const spare = emptyInput || node.addInput(`${PREFIX}_${count + 1}`, "*");
+          spare.type = "*";
+          spare.color_off = "#666";
+          node.graph?.setDirtyCanvas(true);
+        } finally {
+          node[updatingInputs] = false;
+        }
+      };
 
       const onNodeCreated = nodeType.prototype.onNodeCreated;
-      nodeType.prototype.onNodeCreated = async function () {
-        const me = onNodeCreated?.apply(this);
+      nodeType.prototype.onNodeCreated = function () {
+        const me = onNodeCreated?.apply(this, arguments);
+        updateInputs(this);
+        return me;
+      };
 
-        // Initialize stable counter for this node instance
-        if (!this.inputCounter) {
-          this.inputCounter = 0;
+      const configure = nodeType.prototype.configure;
+      nodeType.prototype.configure = function (info) {
+        // Old clipboard data uses socket indices and may omit the fixed template socket.
+        this[restoredInputNames] = PREFIX === "input" && !app.configuringGraph && info.inputs &&
+          !info.inputs.some((slot) => slot.name === "template") &&
+          info.inputs.every((slot) => slot.link == null)
+          ? info.inputs.map((slot) => slot.name)
+          : null;
+
+        // Older workflows can have dynamic sockets incorrectly bound to template.
+        if (PREFIX === "input" && info.inputs) {
+          info.inputs = info.inputs.map((slot) => {
+            if (inputNamePattern.test(slot.name) && slot.widget?.name === "template") {
+              const input = { ...slot };
+              delete input.widget;
+              delete input.localized_name;
+              return input;
+            }
+            return slot;
+          });
         }
 
-        // Start with input_1
-        this.inputCounter++;
-        this.addInput(`${PREFIX}_${this.inputCounter}`, "*");
-        const slot = this.inputs[this.inputs.length - 1];
-        if (slot) {
-          slot.color_off = "#666";
+        this[configuringInputs] = true;
+        try {
+          return configure.apply(this, [info]);
+        } finally {
+          if (app.configuringGraph) {
+            this[configuringInputs] = false;
+            this[restoredInputNames] = null;
+          } else {
+            // Clipboard paste reconnects saved socket indices after configure returns.
+            queueMicrotask(() => {
+              this[configuringInputs] = false;
+              this[restoredInputNames] = null;
+              updateInputs(this);
+            });
+          }
         }
+      };
 
+      const onBeforeConnectInput = nodeType.prototype.onBeforeConnectInput;
+      nodeType.prototype.onBeforeConnectInput = function (slot_idx, target_slot) {
+        const names = this[restoredInputNames];
+        if (this[configuringInputs] && names && typeof target_slot === "number") {
+          const restoredSlot = this.findInputSlot(names[slot_idx]);
+          if (restoredSlot >= 0) slot_idx = restoredSlot;
+        }
+        return onBeforeConnectInput ? onBeforeConnectInput.call(this, slot_idx, target_slot) : slot_idx;
+      };
+
+      const onGraphConfigured = nodeType.prototype.onGraphConfigured;
+      nodeType.prototype.onGraphConfigured = function () {
+        const me = onGraphConfigured?.apply(this, arguments);
+        updateInputs(this);
         return me;
       };
 
@@ -122,109 +203,16 @@ app.registerExtension({
       nodeType.prototype.onConnectionsChange = function (slotType, slot_idx, event, link_info, node_slot) {
         const me = onConnectionsChange?.apply(this, arguments);
 
-        if (slotType === TypeSlot.Input) {
-          if (event === TypeSlotEvent.Connect && link_info) {
-            // Set the type based on connected node
-            const fromNode = this.graph._nodes.find(
-              (otherNode) => otherNode.id == link_info.origin_id
-            );
-            if (fromNode) {
-              const parent_link = fromNode.outputs[link_info.origin_slot];
-              if (parent_link) {
-                node_slot.type = parent_link.type;
-              }
-            }
-          } else if (event === TypeSlotEvent.Disconnect) {
-            // Properly clean up link metadata before removing input
-            if (node_slot && node_slot.link != null && this.graph) {
-              const link = this.graph.links[node_slot.link];
-              if (link) {
-                // Find origin node and remove link from its outputs
-                const originNode = this.graph.getNodeById(link.origin_id);
-                if (originNode && originNode.outputs && originNode.outputs[link.origin_slot]) {
-                  const output = originNode.outputs[link.origin_slot];
-                  if (output.links) {
-                    const linkIndex = output.links.indexOf(node_slot.link);
-                    if (linkIndex !== -1) {
-                      output.links.splice(linkIndex, 1);
-                    }
-                  }
-                }
-                // Remove from graph links
-                delete this.graph.links[node_slot.link];
-              }
-            }
-            // Remove disconnected input
-            this.removeInput(slot_idx);
-          }
-
-          // Remove any extra unconnected inputs (keep only one)
-          const unconnectedSlots = [];
-          for (let i = 0; i < this.inputs.length; i++) {
-            if (this.inputs[i].link === null) {
-              unconnectedSlots.push(i);
-            }
-          }
-
-          // Keep only the last unconnected slot
-          if (unconnectedSlots.length > 1) {
-            for (let i = 0; i < unconnectedSlots.length - 1; i++) {
-              try {
-                this.removeInput(unconnectedSlots[i]);
-                // Adjust remaining indices after removal
-                for (let j = i + 1; j < unconnectedSlots.length; j++) {
-                  unconnectedSlots[j]--;
-                }
-              } catch (e) {
-                // Ignore errors when removing
-              }
-            }
-          }
-
-          // Renumber all inputs sequentially starting from input_1
-          // This ensures ComfyUI always receives input_1, input_2, input_3, etc. in order
-          let connectedCount = 0;
-          for (let i = 0; i < this.inputs.length; i++) {
-            const slot = this.inputs[i];
-            if (slot.link !== null) {
-              connectedCount++;
-              const expectedName = `${PREFIX}_${connectedCount}`;
-              if (slot.name !== expectedName) {
-                slot.name = expectedName;
-              }
-            }
-          }
-
-          // If all inputs are disconnected, reset counter to 0
-          if (connectedCount === 0) {
-            this.inputCounter = 0;
-          } else {
-            this.inputCounter = connectedCount;
-          }
-
-          // Ensure there's always one empty slot at the end for the next connection
-          const hasUnconnected = this.inputs.some(s => s.link === null);
-          if (!hasUnconnected) {
-            this.inputCounter++;
-            this.addInput(`${PREFIX}_${this.inputCounter}`, "*");
-            const newSlot = this.inputs[this.inputs.length - 1];
-            if (newSlot) {
-              newSlot.color_off = "#666";
-            }
-          } else {
-            // Renumber the unconnected slot
-            const unconnectedSlot = this.inputs.find(s => s.link === null);
-            if (unconnectedSlot) {
-              const nextNumber = connectedCount + 1;
-              unconnectedSlot.name = `${PREFIX}_${nextNumber}`;
-              this.inputCounter = connectedCount;
-            }
-          }
-
-          // Force the node to resize itself for the new/deleted connections
-          this?.graph?.setDirtyCanvas(true);
+        // Restoring slots and links is incomplete until onGraphConfigured.
+        if (
+          slotType !== 1 || app.configuringGraph || this[configuringInputs] ||
+          this[updatingInputs] || !node_slot || !isDynamicInput(node_slot)
+        ) {
+          return me;
         }
 
+        // A replacement connection may already occupy a disconnected socket.
+        updateInputs(this);
         return me;
       };
     }
