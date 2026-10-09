@@ -45,7 +45,11 @@ function installReplacePanel(node, widget) {
     overlay = document.createElement("div");
     overlay.className = "yallm-template-replace";
     overlay.innerHTML = `
-      <button type="button" class="yallm-replace-toggle" title="批量替换" aria-expanded="false">批量替换</button>
+      <button type="button" class="yallm-replace-toggle" title="批量替换" aria-label="批量替换" aria-expanded="false">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m16 3 4 4-4 4M20 7H4m4 6-4 4 4 4M4 17h16" />
+        </svg>
+      </button>
       <form class="yallm-replace-panel" aria-label="批量替换" hidden>
         <div class="yallm-replace-header">
           <strong>批量替换</strong>

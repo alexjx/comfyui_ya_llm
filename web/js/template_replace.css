@@ -41,11 +41,22 @@
   cursor: default;
 }
 
-.yallm-replace-toggle {
+.yallm-template-replace .yallm-replace-toggle {
   position: absolute;
   top: 6px;
-  right: 6px;
+  right: 24px;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  display: grid;
+  place-items: center;
+  opacity: 0.4;
   pointer-events: auto;
+}
+
+.yallm-replace-toggle:hover,
+.yallm-replace-toggle:focus-visible {
+  opacity: 1;
 }
 
 .yallm-replace-panel {
